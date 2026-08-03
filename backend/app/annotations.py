@@ -87,7 +87,14 @@ def save_annotation(
     if not any(video.id == video_id for video in mission.videos):
         raise LookupError("Video nicht gefunden")
     video = next(item for item in mission.videos if item.id == video_id)
-    if payload.polygons or payload.mask is None:
+    full_frame_mask_only = (
+        payload.mask is not None
+        and not payload.polygons
+        and len(payload.mask.rle) == 2
+        and payload.mask.rle[0] == 2
+        and payload.mask.rle[1] == payload.mask.width * payload.mask.height
+    )
+    if payload.polygons or payload.mask is None or full_frame_mask_only:
         metadata = probe_labeling_video(mission, mission_dir, video_id)
         if frame_index < 0 or frame_index >= metadata["total_frames"]:
             raise LookupError("Videoframe nicht gefunden")
@@ -97,6 +104,11 @@ def save_annotation(
             raise ValueError("Zeitstempel passt nicht zum Originalvideoframe")
         if payload.source_frame_hash and payload.source_frame_hash != expected_hash:
             raise ValueError("Quellframe-Hash passt nicht zum Originalvideoframe")
+        if full_frame_mask_only and (payload.mask.width, payload.mask.height) != (
+            metadata["width"],
+            metadata["height"],
+        ):
+            raise ValueError("Maskengröße passt nicht zum Originalvideoframe")
         source_frame_hash = expected_hash
     else:
         provenance = frame_provenance(mission_dir, video_id, frame_index)

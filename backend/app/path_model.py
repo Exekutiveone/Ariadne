@@ -191,7 +191,22 @@ def _features(image: np.ndarray):
     return np.stack(channels, axis=-1).reshape(-1, len(channels)).astype(np.float32)
 
 
-def _read_frames(mission: MissionRecord, mission_dir: Path, records, width: int = MODEL_WIDTH):
+def _read_frames(
+    mission: MissionRecord,
+    mission_dir: Path,
+    records,
+    width: int = MODEL_WIDTH,
+    *,
+    allow_unlabelled: bool = False,
+    progress=None,
+):
+    """Dekodiert Labelframes samt effektiver Ground-Truth-Maske.
+
+    `allow_unlabelled=True` nimmt zusätzlich Frames ganz ohne Wegfläche auf
+    (Kritisch-Meldungen: der gesamte Frame ist Negativbeispiel). `progress`
+    wird, falls gesetzt, nach jedem verarbeiteten Record ohne Argumente
+    aufgerufen — für Fortschrittsanzeigen langer Trainingsläufe.
+    """
     by_video = {}
     for record in records:
         by_video.setdefault(record["video_id"], []).append(record)
@@ -205,12 +220,15 @@ def _read_frames(mission: MissionRecord, mission_dir: Path, records, width: int 
             for record in video_records:
                 capture.set(cv2.CAP_PROP_POS_FRAMES, int(record["frame_index"]))
                 ok, image = capture.read()
+                if progress is not None:
+                    progress()
                 if not ok:
                     continue
                 resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
                 mask = _polygon_mask(record, width, height)
                 mask = _apply_refinements(mask, mission_dir, video_id, int(record["frame_index"]))
-                if mask.any() and (~mask.astype(bool)).any():
+                labelled = mask.any() and (~mask.astype(bool)).any()
+                if labelled or (allow_unlabelled and not mask.any()):
                     decoded.append({"record": record, "image": resized, "mask": mask})
         finally:
             capture.release()

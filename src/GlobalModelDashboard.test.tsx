@@ -7,7 +7,7 @@ const metrics = {tp: 10, tn: 10, fp: 1, fn: 1, missed_label_fraction: .09, inven
 const model = {
   schema_version: '1.0', scope: 'global_cross_mission', run_id: 'global-run-1', created_at: '2026-08-03T17:41:13Z',
   model: {id: 'ariadne-cpu-path-rff', type: 'rff', hardware: 'CPU', cloud_used: false, input_width: 160, feature_count: 22, random_features: 64, threshold: .3},
-  dataset: {missions: [{mission_id: 'mission-1', name: 'Mission 1', confirmed_frames: 251, train_frames: 200, validation_frames: 51}], confirmed_frames: 251, videos: 4, refinements_included: 20},
+  dataset: {missions: [{mission_id: 'mission-1', name: 'Mission 1', confirmed_frames: 251, train_frames: 200, validation_frames: 51}], confirmed_frames: 251, videos: 4, refinements_included: 20, critical_flags_included: 3},
   split: {strategy: 's', train_frames: 200, validation_frames: 51, training_pixels_sampled: 100, same_frame_in_train_and_validation: false},
   train_metrics: metrics, validation_metrics: metrics, evidence: [], runtime_seconds: 31, limitations: [],
 }
@@ -21,10 +21,14 @@ const analysisResult = {
 
 vi.mock('./api', () => ({
   getGlobalModelDashboard: async () => ({
-    dataset: {missions: [{mission_id: 'mission-1', name: 'Mission 1', confirmed_frames: 251, videos: 4, refinements: 20}], totals: {missions: 1, confirmed_frames: 251, videos: 4, refinements: 20}},
+    dataset: {missions: [{mission_id: 'mission-1', name: 'Mission 1', confirmed_frames: 251, videos: 4, refinements: 20, critical_flags: 3}], totals: {missions: 1, confirmed_frames: 251, videos: 4, refinements: 20, critical_flags: 3}},
     model,
   }),
   getLabelingVideos: async () => ({mission_id: 'mission-1', source: 'original_video_metadata_only', automatic_processing_started: false, videos: [{video_id: 'video-1', original_name: 'Waldweg.mp4', fps: 30, total_frames: 3, width: 1920, height: 1080, duration_seconds: .1}]}),
+  updateVideoTerrainCategory: vi.fn(),
+  listCriticalFlags: async () => ({schema_version: '1.0', mission_id: 'mission-1', kind: 'no_path_false_detection', counts: {total: 1}, items: [{video_id: 'video-1', frame_index: 0, timestamp_ms: 0, severity: 4, note: 'wrong', annotator: 'human', created_at: '2026-08-03T17:41:13Z'}]}),
+  saveCriticalFlag: vi.fn(),
+  deleteCriticalFlag: vi.fn(),
   getGlobalVideoAnalysisStatus: async () => ({job_id: 'j', status: 'completed', model_run_id: 'global-run-1', mission_id: 'mission-1', video_id: 'video-1', pid: 0, started_at: '', finished_at: '', processed_frames: 3, total_frames: 3, progress: 1, elapsed_seconds: 12, eta_seconds: 0, message: 'fertig'}),
   getGlobalVideoAnalysisResult: async () => analysisResult,
   predictGlobalPathFrame: async () => ({
@@ -37,6 +41,14 @@ vi.mock('./api', () => ({
   }),
   startGlobalVideoAnalysis: vi.fn(),
   trainGlobalPathModel: vi.fn(),
+  // Der Terrain-Abschnitt haengt am selben Modul; ohne Modell zeigt er nur seine Leerzustaende.
+  getTerrainDashboard: async () => ({
+    dataset: {videos: [], classes: [], totals: {categorized_videos: 0, uncategorized_videos: 0, classes: 0, missions: 0}, label_source: 'video_terrain_category_inherited_by_all_frames'},
+    model: null,
+    runs: {active_run_id: null, training_runs: [], prediction_runs: []},
+  }),
+  trainTerrainModel: vi.fn(),
+  predictTerrainVideo: vi.fn(),
 }))
 
 import GlobalModelDashboard from './GlobalModelDashboard'

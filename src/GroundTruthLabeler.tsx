@@ -1,9 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react'
-import {getGroundTruth, getLabelingVideos, getPathModel, getPathTrainingJob, listGroundTruth, predictPathFrame, runSegmentation, saveGroundTruth, savePathRefinement, startPathTrainingJob, trainPathModel} from './api'
+import {getGroundTruth, getLabelingVideos, getPathModel, getPathTrainingJob, listGroundTruth, predictPathFrame, runSegmentation, saveGroundTruth, savePathRefinement, startPathTrainingJob, trainPathModel, updateVideoTerrainCategory} from './api'
 import GradeLegend from './GradeLegend'
 import {AI_BINARY_PALETTE, COMPARISON_LEGEND, COMPARISON_PALETTE, paintMaskCanvas, paletteFromGradeOntology, rleValueAt} from './masks'
-import type {GroundTruthAnnotation, GroundTruthSummary, GroundTruthStatus, LabelingVideo, Mission, NormalizedPoint, PathModelResult, PathPrediction, PathTrainingJob} from './types'
+import {TERRAIN_CATEGORY_OPTIONS, terrainCategoryLabel} from './terrainCategories'
+import type {GroundTruthAnnotation, GroundTruthSummary, GroundTruthStatus, LabelingVideo, Mission, NormalizedPoint, PathModelResult, PathPrediction, PathTrainingJob, TerrainMask} from './types'
 
 type Tool = 'add' | 'edit' | 'move' | 'pan'
 type Drag =
@@ -79,7 +80,7 @@ function nearestSegmentIndex(point: NormalizedPoint, polygon: NormalizedPoint[])
   return bestIndex
 }
 
-export default function GroundTruthLabeler({mission, onClose, onProcessingComplete}: {mission: Mission; onClose: () => void; onProcessingComplete: () => void | Promise<void>}) {
+export default function GroundTruthLabeler({mission, onClose, onProcessingComplete, onMissionUpdated}: {mission: Mission; onClose: () => void; onProcessingComplete: () => void | Promise<void>; onMissionUpdated?: () => void | Promise<void>}) {
   const [videos, setVideos] = useState<LabelingVideo[]>([])
   const [activeVideoId, setActiveVideoId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -115,10 +116,13 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
   const [message, setMessage] = useState('')
   const [notes, setNotes] = useState('')
   const [annotator, setAnnotator] = useState('Simon')
+  const [videoTerrainDraft, setVideoTerrainDraft] = useState('')
+  const [videoTerrainSaving, setVideoTerrainSaving] = useState(false)
   const [summary, setSummary] = useState<GroundTruthSummary>(() => emptySummary(mission.id))
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({x: 0, y: 0})
   const [maskOpacity, setMaskOpacity] = useState(.3)
+  const [fullFrameNotTraversable, setFullFrameNotTraversable] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const aiMaskCanvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -131,6 +135,10 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
   const frameIndex = selectedFrames[Math.min(selectionPosition, Math.max(0, selectedFrames.length - 1))] ?? 0
   const timestampMs = activeVideo ? timestampFor(frameIndex, activeVideo.fps) : 0
   const hasPolygon = points.length >= 3
+
+  useEffect(() => {
+    setVideoTerrainDraft(activeVideo?.terrain_category ?? '')
+  }, [activeVideo?.video_id, activeVideo?.terrain_category])
 
   useEffect(() => {
     let cancelled = false
@@ -230,13 +238,21 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
         setPoints(copyPoints(polygon))
         setTool('edit')
         setMessage('Gespeichertes Polygon geladen und vollständig editierbar.')
+        setFullFrameNotTraversable(false)
+      } else if (annotation?.mask && !annotation.polygons.length && annotation.mask.rle.length === 2 && annotation.mask.rle[0] === 2 && annotation.mask.rle[1] === annotation.mask.width * annotation.mask.height) {
+        setPoints([])
+        setTool('add')
+        setFullFrameNotTraversable(true)
+        setMessage('Gespeichertes Vollbild-Label geladen: Dieser Frame ist komplett nicht befahrbar.')
       } else if (carriedIntoCurrentFrame) {
         setPoints(copyPoints(carried!.points))
         setTool('edit')
+        setFullFrameNotTraversable(false)
         setMessage('Das Polygon des vorherigen Frames bleibt als neue Vorlage liegen. Verschiebe die Punkte oder lösche es für diesen Frame.')
       } else {
         setPoints([])
         setTool('add')
+        setFullFrameNotTraversable(false)
         setMessage(annotation?.status === 'skipped' ? 'Dieser Frame wurde als nicht relevant übersprungen.' : annotation?.mask ? 'Dieses ältere Rasterlabel enthält noch kein editierbares Polygon.' : 'Neuer Frame: Setze die Polygonpunkte direkt im Bild.')
       }
       if (carried?.videoId === activeVideo.video_id && carried.frameIndex === frameIndex) carryRef.current = null
@@ -251,6 +267,8 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
     }).catch(error => setMessage(error instanceof Error ? error.message : 'Ground Truth konnte nicht geladen werden')).finally(() => !cancelled && setLoading(false))
     return () => {cancelled = true}
   }, [mission.id, activeVideo?.video_id, frameIndex, timestampMs])
+
+  const fullFrameMask = (): TerrainMask | null => activeVideo ? {width: activeVideo.width, height: activeVideo.height, rle: [2, activeVideo.width * activeVideo.height]} : null
 
   const updatePoints = (next: NormalizedPoint[]) => {
     setPast(current => [...current.slice(-49), copyPoints(points)])
@@ -407,13 +425,16 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
 
   const persist = async (nextStatus: GroundTruthStatus) => {
     if (!activeVideo || saving) return null
-    if (nextStatus === 'confirmed' && !hasPolygon) {setMessage('Setze mindestens drei Punkte, bevor du das Polygon bestätigst.'); return null}
+    if (nextStatus === 'confirmed' && !hasPolygon && !fullFrameNotTraversable) {setMessage('Setze mindestens drei Punkte oder wähle Vollbild-Nicht-befahrbar, bevor du bestätigst.'); return null}
     setSaving(true)
-    setMessage(nextStatus === 'skipped' ? 'Frame wird als nicht relevant gespeichert …' : 'Polygon wird gespeichert …')
+    setMessage(nextStatus === 'skipped' ? 'Frame wird als nicht relevant gespeichert …' : fullFrameNotTraversable ? 'Vollbild-Label wird gespeichert …' : 'Polygon wird gespeichert …')
     try {
-      const polygons = nextStatus === 'skipped' || !hasPolygon ? [] : [{id: 'path-1', class_id: 'traversable' as const, points: copyPoints(points)}]
+      const polygons = nextStatus === 'skipped' || (!hasPolygon && !fullFrameNotTraversable) ? [] : [{id: 'path-1', class_id: 'traversable' as const, points: copyPoints(points)}]
       const saved = await saveGroundTruth(mission.id, activeVideo.video_id, frameIndex, {
-        timestamp_ms: timestampMs, polygons, status: nextStatus,
+        timestamp_ms: timestampMs,
+        mask: fullFrameNotTraversable ? fullFrameMask() ?? undefined : undefined,
+        polygons: fullFrameNotTraversable ? [] : polygons,
+        status: nextStatus,
         annotator: annotator.trim() || 'Simon', notes,
       })
       setStatus(saved.status)
@@ -422,12 +443,38 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
       setPast([])
       setFuture([])
       setSummary(await listGroundTruth(mission.id))
-      setMessage(nextStatus === 'confirmed' ? `Frame ${frameIndex + 1} bestätigt.` : nextStatus === 'skipped' ? `Frame ${frameIndex + 1} übersprungen.` : `Entwurf für Frame ${frameIndex + 1} gespeichert.`)
+      setMessage(nextStatus === 'confirmed' ? (fullFrameNotTraversable ? `Frame ${frameIndex + 1} als Vollbild-Nicht-befahrbar bestätigt.` : `Frame ${frameIndex + 1} bestätigt.`) : nextStatus === 'skipped' ? `Frame ${frameIndex + 1} übersprungen.` : `Entwurf für Frame ${frameIndex + 1} gespeichert.`)
       return saved
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Ground Truth konnte nicht gespeichert werden')
       return null
     } finally {setSaving(false)}
+  }
+
+  const saveVideoTerrainCategory = async () => {
+    if (!activeVideo || videoTerrainSaving) return
+    const nextTerrainCategory = videoTerrainDraft.trim() || null
+    if ((activeVideo.terrain_category ?? null) === nextTerrainCategory) {
+      setMessage('Terrainkategorie ist bereits gespeichert.')
+      return
+    }
+    setVideoTerrainSaving(true)
+    setMessage(nextTerrainCategory
+      ? `Terrainkategorie für ${activeVideo.original_name} wird gespeichert …`
+      : `Terrainkategorie für ${activeVideo.original_name} wird entfernt …`)
+    try {
+      const saved = await updateVideoTerrainCategory(mission.id, activeVideo.video_id, {terrain_category: nextTerrainCategory})
+      setVideos(current => current.map(video => video.video_id === activeVideo.video_id ? {...video, terrain_category: saved.terrain_category ?? null} : video))
+      setVideoTerrainDraft(saved.terrain_category ?? '')
+      setMessage(saved.terrain_category
+        ? `Terrainkategorie für ${activeVideo.original_name} gespeichert: ${terrainCategoryLabel(saved.terrain_category)}`
+        : `Terrainkategorie für ${activeVideo.original_name} entfernt.`)
+      await onMissionUpdated?.()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Terrainkategorie konnte nicht gespeichert werden')
+    } finally {
+      setVideoTerrainSaving(false)
+    }
   }
 
   const saveAndNext = async () => {if (await persist('confirmed')) navigate(1, true)}
@@ -532,12 +579,13 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
             <div className="labeling-transform" style={transformStyle}>
               <video ref={videoRef} src={`/api/v1/missions/${mission.id}/videos/${activeVideo.video_id}/content`} preload="auto" muted playsInline onLoadedMetadata={() => {if (videoRef.current) videoRef.current.currentTime = timestampMs / 1000}}/>
               <canvas ref={aiMaskCanvasRef} className="ai-path-mask-layer" style={{opacity: aiMaskOpacity}} aria-hidden="true"/>
-              <svg ref={overlayRef} viewBox="0 0 1 1" preserveAspectRatio="none" className={`polygon-overlay tool-${tool}`} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onContextMenu={removeNearestPoint} aria-label="Ground-Truth-Polygonfläche">
-                {points.length >= 3 && <polygon points={polygonPoints} className="ground-truth-polygon" style={{fillOpacity: maskOpacity}}/>}
-                {points.length > 1 && points.length < 3 && <polyline points={polygonPoints} className="ground-truth-polyline"/>}
-                {points.map(([x, y], index) => <ellipse key={index} cx={x} cy={y} rx={.008 / zoom} ry={.014 / zoom} className={selectedVertex === index ? 'polygon-vertex selected' : 'polygon-vertex'}/>) }
+              <svg ref={overlayRef} viewBox="0 0 1 1" preserveAspectRatio="none" className={`polygon-overlay tool-${tool} ${fullFrameNotTraversable ? 'full-frame-mode' : ''}`} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onContextMenu={removeNearestPoint} aria-label="Ground-Truth-Polygonfläche">
+                {!fullFrameNotTraversable && points.length >= 3 && <polygon points={polygonPoints} className="ground-truth-polygon" style={{fillOpacity: maskOpacity}}/>}
+                {!fullFrameNotTraversable && points.length > 1 && points.length < 3 && <polyline points={polygonPoints} className="ground-truth-polyline"/>}
+                {!fullFrameNotTraversable && points.map(([x, y], index) => <ellipse key={index} cx={x} cy={y} rx={.008 / zoom} ry={.014 / zoom} className={selectedVertex === index ? 'polygon-vertex selected' : 'polygon-vertex'}/>) }
                 {refinementSelection && <ellipse cx={refinementSelection.point[0]} cy={refinementSelection.point[1]} rx={.014 / zoom} ry={.024 / zoom} className="refinement-marker"/>}
               </svg>
+              {fullFrameNotTraversable && <div className="full-frame-flag"><b>Ganzes Bild</b><span>als nicht befahrbar markiert</span></div>}
             </div>
           </div>
         </div>
@@ -546,7 +594,15 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
 
       <aside className="labeling-controls">
         <h2>Frame-Auswahl</h2>
-        <label>Originalvideo<select value={activeVideo.video_id} disabled={dirty} onChange={event => {setActiveVideoId(event.target.value); setSelectionPosition(0); resetViewport()}}>{videos.map(video => <option key={video.video_id} value={video.video_id}>{video.original_name}</option>)}</select></label>
+        <label>Originalvideo<select value={activeVideo.video_id} disabled={dirty} onChange={event => {setActiveVideoId(event.target.value); setSelectionPosition(0); resetViewport()}}>{videos.map(video => <option key={video.video_id} value={video.video_id}>{video.original_name} · {terrainCategoryLabel(video.terrain_category)}</option>)}</select><small>{activeVideo.terrain_category ? `Terrainkategorie: ${terrainCategoryLabel(activeVideo.terrain_category)}` : 'Terrainkategorie noch nicht gewählt. Alle Frames dieses Videos übernehmen dieses Label.'}</small></label>
+        <label>Terrainkategorie
+          <select aria-label="Terrainkategorie" value={videoTerrainDraft} disabled={videoTerrainSaving} onChange={event => setVideoTerrainDraft(event.target.value)}>
+            <option value="">Noch keine Kategorie</option>
+            {TERRAIN_CATEGORY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <small>Die Kategorie gilt für alle Frames dieses Videos und kann hier nachträglich geändert werden.</small>
+        </label>
+        <div className="terrain-category-actions"><button disabled={videoTerrainSaving || (videoTerrainDraft.trim() === (activeVideo.terrain_category ?? ''))} onClick={() => void saveVideoTerrainCategory()}>{videoTerrainSaving ? 'KATEGORIE WIRD GESPEICHERT …' : 'Kategorie speichern'}</button><small>{videoTerrainDraft.trim() === (activeVideo.terrain_category ?? '') ? 'Keine ungespeicherten Änderungen an der Videokategorie.' : 'Videokategorie geändert – zum Übernehmen speichern.'}</small></div>
         <div className="sampling-tabs"><button className={selectionMode === 'stride' ? 'active' : ''} disabled={dirty} onClick={() => {setSelectionMode('stride'); setSelectionPosition(0)}}>Schrittweite</button><button className={selectionMode === 'count' ? 'active' : ''} disabled={dirty} onClick={() => {setSelectionMode('count'); setSelectionPosition(0)}}>Anzahl Frames</button></div>
         {selectionMode === 'stride' ? <><label>Jeden n-ten Frame<select value={[1, 5, 10, 20, 50].includes(stride) ? stride : 'custom'} disabled={dirty} onChange={event => {if (event.target.value !== 'custom') setStride(+event.target.value); setSelectionPosition(0)}}><option value="1">jeden Frame</option><option value="5">jeden 5. Frame</option><option value="10">jeden 10. Frame</option><option value="20">jeden 20. Frame</option><option value="50">jeden 50. Frame</option><option value="custom">Benutzerdefiniert …</option></select></label>{![1, 5, 10, 20, 50].includes(stride) && <label>Eigene Schrittweite<input aria-label="Eigene Schrittweite" type="number" min="1" max={activeVideo.total_frames} step="1" value={stride} disabled={dirty} onChange={event => {const value = Number(event.target.value); if (Number.isFinite(value) && value >= 1) setStride(Math.min(activeVideo.total_frames, Math.round(value))); setSelectionPosition(0)}}/><small>Zum Beispiel 3, 7, 25 oder 100.</small></label>}</> : <label>Anzahl zu labelnder Frames<input aria-label="Anzahl zu labelnder Frames" type="number" min="1" max={activeVideo.total_frames} step="1" value={targetCount} disabled={dirty} onChange={event => {const value = Number(event.target.value); if (Number.isFinite(value) && value >= 1) setTargetCount(Math.min(activeVideo.total_frames, Math.round(value))); setSelectionPosition(0)}}/><small>Die Frames werden gleichmäßig über das gesamte Video verteilt.</small></label>}
         <div className="sampling-summary"><b>{selectedFrames.length.toLocaleString('de-DE')} Frames ausgewählt</b><span>{summary.counts.confirmed} bestätigt · {summary.counts.draft} Entwürfe · {summary.counts.skipped} übersprungen</span></div>
@@ -570,16 +626,20 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
         </div>
         <div className="polygon-tool-grid"><button className={tool === 'add' ? 'active' : ''} onClick={() => setTool('add')}>＋ Punkt hinzufügen</button><button className={tool === 'edit' ? 'active' : ''} disabled={!points.length} onClick={() => setTool('edit')}>Punkt auswählen</button><button className={tool === 'move' ? 'active' : ''} disabled={!hasPolygon} onClick={() => setTool('move')}>Polygon verschieben</button><button className={tool === 'pan' ? 'active' : ''} onClick={() => setTool('pan')}>✋ Bild verschieben</button></div>
         {tool === 'add' && <small>{hasPolygon ? 'Klicke auf eine Polygonkante, um dort einen weiteren Punkt einzufügen.' : 'Klicke mindestens drei Punkte im befahrbaren Bereich an.'}</small>}
+        <div className="full-frame-toggle">
+          <button className={fullFrameNotTraversable ? 'active' : ''} onClick={() => {setFullFrameNotTraversable(current => !current); setDirty(true); if (status === 'confirmed' || status === 'skipped') setStatus('draft')}}>Ganzes Bild nicht befahrbar</button>
+          <small>Für Frames ohne befahrbaren Bereich. Das speichert eine Vollbild-Ground-Truth statt eines Polygons.</small>
+        </div>
         <div className="polygon-edit-actions"><button disabled={selectedVertex === null} onClick={removeSelectedPoint}>Ausgewählten Punkt entfernen</button><button disabled={!hasPolygon || tool !== 'add'} onClick={() => setTool('edit')}>Polygon schließen</button></div>
         <div className="history-actions"><button disabled={!past.length} onClick={undo}>↶ Undo</button><button disabled={!future.length} onClick={redo}>↷ Redo</button><button className="danger" disabled={!points.length} onClick={() => {updatePoints([]); setTool('add'); setSelectedVertex(null)}}>Aktuelles Polygon löschen</button></div>
         <small className="automatic-carry-note">Beim nächsten Frame bleibt das aktuelle Polygon automatisch als editierbare Vorlage sichtbar.</small>
 
         <hr/>
-        <div className={`label-record-state ${status} ${dirty ? 'dirty' : ''}`}><b>{dirty ? 'Ungespeicherte Änderung' : status === 'confirmed' ? `Bestätigt · Revision ${revision}` : status === 'draft' ? `Entwurf · Revision ${revision}` : status === 'skipped' ? 'Als nicht relevant übersprungen' : 'Noch nicht markiert'}</b><span>{points.length} Polygonpunkte</span></div>
+        <div className={`label-record-state ${status} ${dirty ? 'dirty' : ''}`}><b>{dirty ? 'Ungespeicherte Änderung' : status === 'confirmed' ? `Bestätigt · Revision ${revision}` : status === 'draft' ? `Entwurf · Revision ${revision}` : status === 'skipped' ? 'Als nicht relevant übersprungen' : 'Noch nicht markiert'}</b><span>{fullFrameNotTraversable ? 'Ganzes Bild als nicht befahrbar' : `${points.length} Polygonpunkte`}</span></div>
         <label>Bearbeiter<input value={annotator} maxLength={80} onChange={event => {setAnnotator(event.target.value); setDirty(true)}}/></label>
         <label>Notiz<textarea value={notes} maxLength={1000} onChange={event => {setNotes(event.target.value); setDirty(true)}} placeholder="Optionaler Hinweis zu diesem Frame"/></label>
         {message && <div className="labeling-message" role="status">{message}</div>}
-        <div className="label-save-actions"><button disabled={saving} onClick={() => void persist('draft')}>Entwurf speichern</button><button disabled={saving || !hasPolygon} onClick={() => void persist('confirmed')}>Polygon bestätigen</button><button className="primary" disabled={saving || !hasPolygon || selectionPosition >= selectedFrames.length - 1} onClick={() => void saveAndNext()}>Bestätigen &amp; nächster Frame</button></div>
+        <div className="label-save-actions"><button disabled={saving} onClick={() => void persist('draft')}>Entwurf speichern</button><button disabled={saving || (!hasPolygon && !fullFrameNotTraversable)} onClick={() => void persist('confirmed')}>{fullFrameNotTraversable ? 'Vollbild bestätigen' : 'Polygon bestätigen'}</button><button className="primary" disabled={saving || (!hasPolygon && !fullFrameNotTraversable) || selectionPosition >= selectedFrames.length - 1} onClick={() => void saveAndNext()}>{fullFrameNotTraversable ? 'Vollbild bestätigen &amp; nächster Frame' : 'Bestätigen &amp; nächster Frame'}</button></div>
       </aside>
     </div>
 

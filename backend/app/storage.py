@@ -39,6 +39,22 @@ class MissionStore:
             return None
         return MissionRecord.model_validate_json(path.read_text(encoding="utf-8"))
 
+    def save(self, record: MissionRecord) -> MissionRecord:
+        mission_dir = self.root / record.id
+        mission_dir.mkdir(parents=True, exist_ok=True)
+        manifest = mission_dir / "mission.json"
+        temporary = manifest.with_suffix(".tmp")
+        temporary.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+        with temporary.open("rb+") as stream:
+            os.fsync(stream.fileno())
+        try:
+            os.replace(temporary, manifest)
+        except PermissionError:
+            # If a sync client briefly blocks rename, fall back to an in-place
+            # overwrite so metadata edits remain usable on the local machine.
+            manifest.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+        return record
+
     async def create(
         self, payload: SurveyPayload, uploads: list[UploadFile], metadata: list[VideoMeta]
     ) -> MissionRecord:

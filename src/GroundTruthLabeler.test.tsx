@@ -1,14 +1,17 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react'
-import {expect, test, vi} from 'vitest'
+import {beforeEach, expect, test, vi} from 'vitest'
+
+const updateVideoTerrainCategory = vi.hoisted(() => vi.fn(async () => ({id: 'video-1', original_name: 'Waldweg.mp4', terrain_category: 'walduntergrund'})))
 
 vi.mock('./api', () => ({
   getLabelingVideos: async () => ({
     mission_id: 'mission-1', source: 'original_video_metadata_only', automatic_processing_started: false,
-    videos: [{video_id: 'video-1', original_name: 'Waldweg.mp4', fps: 30, total_frames: 2400, width: 1920, height: 1080, duration_seconds: 80}],
+    videos: [{video_id: 'video-1', original_name: 'Waldweg.mp4', fps: 30, total_frames: 2400, width: 1920, height: 1080, duration_seconds: 80, terrain_category: 'schotterweg'}],
   }),
   getGroundTruth: async () => null,
   listGroundTruth: async () => ({schema_version: '2.0', mission_id: 'mission-1', ontology: {}, counts: {total: 1, draft: 1, confirmed: 0, skipped: 0}, items: [{video_id: 'video-1', frame_index: 10, timestamp_ms: 333, source_frame_hash: 'a'.repeat(64), status: 'draft', annotator: 'Simon', revision: 1, updated_at: '2026-08-03T00:00:00Z', statistics: {polygon_count: 1, point_count: 4, classes: {traversable: 1}}}]}),
   saveGroundTruth: vi.fn(),
+  updateVideoTerrainCategory,
   runSegmentation: vi.fn(),
   getPathModel: async () => null,
   getPathTrainingJob: async () => null,
@@ -19,6 +22,10 @@ vi.mock('./api', () => ({
 }))
 
 import GroundTruthLabeler, {buildFrameSelection, normalizedPointFromBounds, pointerAction, polygonForNextFrame, rleValueAt} from './GroundTruthLabeler'
+
+beforeEach(() => {
+  updateVideoTerrainCategory.mockClear()
+})
 
 test('builds selectable frame sets by stride or requested count', () => {
   expect(buildFrameSelection(25, 'stride', 10, 100)).toEqual([0, 10, 20])
@@ -71,4 +78,18 @@ test('shows a pure manual polygon workflow with zoom, editing and explicit proce
   expect(screen.getByText('KI-Wegmaske anzeigen')).toBeInTheDocument()
   expect(screen.getByRole('combobox', {name: 'Trainingsprofil'})).toHaveValue('overnight')
   expect(screen.getByRole('button', {name: 'NACHTTRAINING STARTEN'})).toBeDisabled()
+})
+
+test('allows editing the terrain category of an existing video from the inventory', async () => {
+  const onMissionUpdated = vi.fn()
+  render(<GroundTruthLabeler mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any} onClose={() => undefined} onProcessingComplete={() => undefined} onMissionUpdated={onMissionUpdated}/>)
+
+  const categorySelect = await screen.findByRole('combobox', {name: 'Terrainkategorie'})
+  await waitFor(() => expect(categorySelect).toHaveValue('schotterweg'))
+  fireEvent.change(categorySelect, {target: {value: 'walduntergrund'}})
+  fireEvent.click(screen.getByRole('button', {name: 'Kategorie speichern'}))
+
+  await waitFor(() => expect(updateVideoTerrainCategory).toHaveBeenCalledWith('mission-1', 'video-1', {terrain_category: 'walduntergrund'}))
+  await waitFor(() => expect(onMissionUpdated).toHaveBeenCalled())
+  expect(screen.getByText(/Terrainkategorie für Waldweg\.mp4 gespeichert/i)).toBeInTheDocument()
 })

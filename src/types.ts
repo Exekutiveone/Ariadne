@@ -1,6 +1,6 @@
 export type Point = {lat: number; lng: number}
-export type VideoInput = {file: File; direction: 'A_TO_B' | 'B_TO_A'; orientation: 'PORTRAIT' | 'LANDSCAPE'}
-export type Mission = {id: string; name: string; status: 'READY_FOR_GOAL_2'; created_at: string; route: Point[]; videos: {id: string; original_name: string; size_bytes: number}[]}
+export type VideoInput = {file: File; direction: 'A_TO_B' | 'B_TO_A'; orientation: 'PORTRAIT' | 'LANDSCAPE'; terrainCategory?: string | null}
+export type Mission = {id: string; name: string; status: 'READY_FOR_GOAL_2'; created_at: string; route: Point[]; videos: {id: string; original_name: string; size_bytes: number; terrain_category?: string | null}[]}
 
 export type Analysis = {
   mission_id: string
@@ -76,7 +76,7 @@ export type GroundTruthSummary = {
   counts: {total: number; draft: number; confirmed: number; skipped: number}
   items: (Pick<GroundTruthAnnotation, 'video_id' | 'frame_index' | 'timestamp_ms' | 'source_frame_hash' | 'status' | 'annotator' | 'revision' | 'updated_at' | 'statistics'> & {polygons?: GroundTruthPolygon[]; mask?: TerrainMask})[]
 }
-export type LabelingVideo = {video_id: string; original_name: string; fps: number; total_frames: number; width: number; height: number; duration_seconds: number}
+export type LabelingVideo = {video_id: string; original_name: string; fps: number; total_frames: number; width: number; height: number; duration_seconds: number; terrain_category?: string | null}
 export type LabelingVideoManifest = {mission_id: string; source: 'original_video_metadata_only'; automatic_processing_started: false; videos: LabelingVideo[]}
 export type PathModelMetrics = {tp: number; tn: number; fp: number; fn: number; missed_label_fraction: number; invented_path_fraction: number; symmetric_penalty_points: number; symmetric_score: number; iou: number; dice: number; precision: number; recall: number}
 export type PathModelResult = {
@@ -112,15 +112,49 @@ export type PathTrainingJob = {job_id: string; status: 'queued' | 'running' | 'c
 export type GlobalPathModelResult = {
   schema_version: string; scope: 'global_cross_mission'; run_id: string; created_at: string
   model: {id: string; type: string; hardware: 'CPU'; cloud_used: false; input_width: number; feature_count: number; random_features: number; threshold: number}
-  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; train_frames: number; validation_frames: number}[]; confirmed_frames: number; videos: number; refinements_included: number}
+  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; train_frames: number; validation_frames: number}[]; confirmed_frames: number; videos: number; refinements_included: number; critical_flags_included: number}
   split: {strategy: string; train_frames: number; validation_frames: number; training_pixels_sampled: number; same_frame_in_train_and_validation: false}
   train_metrics: PathModelMetrics; validation_metrics: PathModelMetrics
   evidence: {kind: string; video_id: string; frame_index: number; timestamp_ms: number; metrics: PathModelMetrics; image_url: string}[]
   runtime_seconds: number; limitations: string[]
 }
 export type GlobalModelDashboardData = {
-  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number}[]; totals: {missions: number; confirmed_frames: number; videos: number; refinements: number}}
+  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}[]; totals: {missions: number; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}}
   model: GlobalPathModelResult | null
+}
+/* Videobasierte Terrainklassifizierung. Die Klasse eines Frames ist immer die
+   aktuell am Video gesetzte Kategorie; Frames tragen kein eigenes Label. */
+export type TerrainClassMetrics = {terrain_category: string; support: number; precision: number; recall: number; f1: number}
+export type TerrainMetrics = {frames: number; accuracy: number; balanced_accuracy: number; mean_confidence: number; uncertain_frames: number; uncertain_fraction: number; accuracy_on_confident: number; confusion_matrix: number[][]; per_class: TerrainClassMetrics[]}
+export type TerrainSplitPart = {videos: number; frames: number; classes: string[]; video_ids: string[]; all_classes: string[]}
+export type TerrainDatasetVideo = {mission_id: string; mission_name: string; video_id: string; original_name: string; terrain_category: string | null; frames?: number}
+export type TerrainModelResult = {
+  schema_version: string; scope: 'video_terrain_classification'; kind: 'training'; run_id: string; created_at: string
+  model: {id: string; type: string; hardware: 'CPU'; cloud_used: false; input_width: number; grid: number; feature_count: number; random_features: number; softmax_scale: number; confidence_threshold: number}
+  classes: string[]
+  dataset: {frame_stride: number; label_source: string; categorized_videos: number; uncategorized_videos: number; videos: TerrainDatasetVideo[]; frames: number}
+  split: {strategy: string; random_frame_split_used: false; same_video_in_multiple_parts: false; train: TerrainSplitPart; validation: TerrainSplitPart; test: TerrainSplitPart | null; notes: string[]}
+  calibration: {softmax_scale: number; selected_on: string; negative_log_likelihood: number}
+  train_metrics: TerrainMetrics; validation_metrics: TerrainMetrics; test_metrics: TerrainMetrics | null
+  runtime_seconds: number; limitations: string[]
+}
+/** predicted_category ist null, sobald die Konfidenz unter dem Schwellenwert liegt — dann bleibt nur top_category als unverbindliche Vermutung. */
+export type TerrainFramePrediction = {frame_index: number; timestamp_ms: number; predicted_category: string | null; top_category: string; confidence: number; uncertain: boolean; scores: Record<string, number>}
+export type TerrainPredictionRun = {
+  schema_version: string; kind: 'prediction'; run_id: string; created_at: string; model_run_id: string
+  mission_id: string; video_id: string; original_name: string; video_terrain_category: string | null
+  frame_stride: number; confidence_threshold: number; classes: string[]
+  summary: {frames: number; uncertain_frames: number; uncertain_fraction: number; mean_confidence: number; dominant_category: string; counts: Record<string, number>; matches_video_category: number | null}
+  frames: TerrainFramePrediction[]; runtime_seconds: number; limitations: string[]
+}
+export type TerrainDashboardData = {
+  dataset: {videos: TerrainDatasetVideo[]; classes: {terrain_category: string; videos: number; missions: number}[]; totals: {categorized_videos: number; uncategorized_videos: number; classes: number; missions: number}; label_source: string}
+  model: TerrainModelResult | null
+  runs: {
+    active_run_id: string | null
+    training_runs: {run_id: string; kind: string; created_at: string; active: boolean; classes: string[]; frame_stride: number; confidence_threshold: number; validation_accuracy: number; test_accuracy: number | null; runtime_seconds: number}[]
+    prediction_runs: {run_id: string; kind: string; created_at: string; model_run_id: string; mission_id: string; video_id: string; original_name: string; frame_stride: number; confidence_threshold: number; predicted_frames: number; uncertain_frames: number; dominant_category: string}[]
+  }
 }
 export type GlobalVideoAnalysisStatus = {job_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'; model_run_id: string; mission_id: string; video_id: string; pid: number; started_at: string; finished_at: string | null; processed_frames: number; total_frames: number; progress: number; elapsed_seconds: number; eta_seconds: number | null; message: string}
 /** grade_mask ist optional: Analysen aus der Zeit vor Phase 3 enthalten nur die Binärmaske. */

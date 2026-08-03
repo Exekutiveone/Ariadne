@@ -18,9 +18,13 @@ werden dem Nutzer auf Deutsch angezeigt. Bezeichner im Code sind Englisch.
   (`ariadne-cpu-path-rff`): Random-Feature-Ridge-Klassifikator ueber 22 Pixelmerkmalen.
 - `backend/app/global_path_model.py`, `global_video_analysis.py` — missionsuebergreifendes
   Modell und persistente Vollvideo-Inferenz mit wiederaufnehmbaren Checkpoints.
+- `backend/app/terrain_model.py` — videobasierte Terrainklassifizierung
+  (`ariadne-cpu-terrain-rff`): ein Merkmalsvektor je Frame, Multiklassen-Ridge
+  ueber Random-Feature-Projektionen, Laeufe unter `data/global_models/terrain_model`.
 - `backend/app/annotations.py`, `labeling.py` — manuelle Ground-Truth-Polygone.
 - `src/` — React-Frontend. `AnalysisView.tsx` (Player mit Overlays) und
   `GroundTruthLabeler.tsx` (Polygonwerkzeug) sind die beiden grossen Komponenten.
+  `TerrainModelPanel.tsx` haengt als eigener Abschnitt im `GlobalModelDashboard`.
 
 ## Befehle
 
@@ -78,5 +82,15 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   ungueltig. `MODEL_SCHEMA_VERSION` anheben; `test_path_model_core.py` pinnt die Zahl.
 - Train/Validation werden nach Frames getrennt und die Schwelle nur auf
   Validierungsframes gewaehlt. Diese Trennung nicht aufweichen.
+- Beim Terrainmodell laeuft die Trennung eine Ebene hoeher: Train, Validierung
+  und Test werden nach `video_id` gruppiert, nie nach einzelnen Frames. Frames
+  desselben Videos sind fast identisch — ein Frame-Split waere ein Datenleck.
+  Ebenso liegt die Terrainklasse nur am Video (`StoredVideo.terrain_category`);
+  Frames erben sie und speichern nie ein eigenes Terrainlabel, damit ein Umlabeln
+  des Videos sofort fuer alle seine Frames gilt.
+- `TERRAIN_FEATURE_COUNT` ist in `test_terrain_model.py` gepinnt; aendert sich der
+  Deskriptor, muss `TERRAIN_MODEL_SCHEMA_VERSION` steigen.
+- Terrainlaeufe sind unveraenderlich: jeder Trainings- und jeder Videovorhersagelauf
+  bekommt ein eigenes Verzeichnis, nur `current.json` zeigt um.
 - Die Ausgabe ist eine KI-gestuetzte Einschaetzung und ausdruecklich **keine
   sicherheitsrelevante Fahrfreigabe**. Diesen Vorbehalt in Berichten und UI beibehalten.

@@ -42,6 +42,7 @@ vi.mock('./api', () => ({
   getPathTrainingJob: async () => null,
   predictPathFrame: async () => prediction,
   saveGroundTruth: vi.fn(), runSegmentation: vi.fn(), savePathRefinement: vi.fn(),
+  updateVideoTerrainCategory: vi.fn(),
   startPathTrainingJob: vi.fn(), trainPathModel: vi.fn(),
 }))
 

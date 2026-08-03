@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from .annotations import delete_annotation, get_annotation, list_annotations, save_annotation
+from .critical_flags import delete_critical_flag, list_critical_flags, save_critical_flag
 from .global_path_model import (
     current_global_model,
     current_global_model_dir,
@@ -21,13 +22,32 @@ from .global_video_analysis import (
     start_global_video_analysis,
 )
 from .labeling import list_labeling_videos
-from .models import GroundTruthAnnotationInput, MissionRecord, PathRefinementInput, SurveyPayload, VideoMeta
+from .models import (
+    CriticalFlagInput,
+    GroundTruthAnnotationInput,
+    MissionRecord,
+    PathRefinementInput,
+    SurveyPayload,
+    TerrainTrainingInput,
+    TerrainVideoPredictionInput,
+    VideoMeta,
+    VideoTerrainCategoryInput,
+)
 from .path_model import current_path_model_dir, predict_path_frame, save_path_refinement, train_path_model
 from .path_training_jobs import start_training_job, training_job_status
 from .processor import autonomous_loop, current_run_dir
 from .reconstruction import current_reconstruction_dir, reconstruct
 from .segmentation import current_segmentation_dir, process_segmentation
 from .storage import MissionStore
+from .terrain_model import (
+    current_terrain_model,
+    list_terrain_runs,
+    predict_terrain_frame,
+    predict_terrain_video,
+    terrain_dataset_summary,
+    terrain_prediction_run,
+    train_terrain_model,
+)
 
 logging.basicConfig(level=os.getenv("ARIADNE_LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ariadne")
@@ -113,6 +133,60 @@ def global_video_analyze_result(mission_id: str, video_id: str):
         raise HTTPException(409, str(exc)) from exc
 
 
+NO_TERRAIN_MODEL = "Es wurde noch kein Terrainmodell trainiert"
+
+
+@app.get("/api/v1/terrain-model/dashboard")
+def terrain_model_dashboard():
+    try:
+        model = current_terrain_model(store.root)
+    except (OSError, ValueError, KeyError):
+        model = None
+    return {"dataset": terrain_dataset_summary(store), "model": model, "runs": list_terrain_runs(store.root)}
+
+
+@app.post("/api/v1/terrain-model/train", status_code=201)
+def terrain_model_train(payload: TerrainTrainingInput):
+    try:
+        return train_terrain_model(store, payload.frame_stride, payload.confidence_threshold)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/terrain-model/predict/{mission_id}/{video_id}/{frame_index}")
+def terrain_model_predict_frame(mission_id: str, video_id: str, frame_index: int):
+    try:
+        return predict_terrain_frame(store, mission_id, video_id, frame_index)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(409, NO_TERRAIN_MODEL) from exc
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/api/v1/terrain-model/predict-video/{mission_id}/{video_id}", status_code=201)
+def terrain_model_predict_video(mission_id: str, video_id: str, payload: TerrainVideoPredictionInput):
+    try:
+        return predict_terrain_video(store, mission_id, video_id, payload.frame_stride, payload.confidence_threshold)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(409, NO_TERRAIN_MODEL) from exc
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/terrain-model/predictions/{run_id}")
+def terrain_model_prediction_run(run_id: str):
+    try:
+        return terrain_prediction_run(store.root, run_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @app.get("/api/v1/missions", response_model=list[MissionRecord])
 def list_missions():
     return store.list()
@@ -164,6 +238,24 @@ def video_content(mission_id: str, video_id: str):
         raise HTTPException(404, "Video nicht gefunden")
     path, meta = found
     return FileResponse(path, media_type=meta.content_type, filename=meta.original_name)
+
+
+@app.patch("/api/v1/missions/{mission_id}/videos/{video_id}")
+def update_video_metadata(mission_id: str, video_id: str, payload: VideoTerrainCategoryInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    current = next((item for item in record.videos if item.id == video_id), None)
+    if not current:
+        raise HTTPException(404, "Video nicht gefunden")
+    updated_video = current.model_copy(update={"terrain_category": payload.terrain_category})
+    updated_videos = [updated_video if item.id == video_id else item for item in record.videos]
+    updated = record.model_copy(update={"videos": updated_videos})
+    try:
+        store.save(updated)
+    except OSError as exc:
+        raise HTTPException(409, f"Video-Metadaten konnten nicht gespeichert werden: {exc}") from exc
+    return updated_video
 
 
 @app.post("/api/v1/missions/{mission_id}/analysis", status_code=201)
@@ -313,6 +405,41 @@ def ground_truth_list(mission_id: str, video_id: str | None = None, include_geom
         return list_annotations(record, store.root / mission_id, video_id, include_geometry)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/v1/missions/{mission_id}/critical-flags")
+def critical_flags_list(mission_id: str, video_id: str | None = None):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return list_critical_flags(record, store.root / mission_id, video_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/v1/missions/{mission_id}/critical-flags/{video_id}/{frame_index}", status_code=201)
+def critical_flags_put(mission_id: str, video_id: str, frame_index: int, payload: CriticalFlagInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return save_critical_flag(record, store.root / mission_id, video_id, frame_index, payload)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.delete("/api/v1/missions/{mission_id}/critical-flags/{video_id}/{frame_index}", status_code=204)
+def critical_flags_delete(mission_id: str, video_id: str, frame_index: int):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    if not delete_critical_flag(store.root / mission_id, video_id, frame_index):
+        raise HTTPException(404, "Fuer diesen Frame gibt es keine Meldung")
 
 
 @app.get("/api/v1/missions/{mission_id}/labeling/videos")

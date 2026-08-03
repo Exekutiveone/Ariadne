@@ -29,3 +29,6 @@ data/global_models/*/video_analyses/
 # werden nicht hochgeladen, auch nicht ueber LFS. Das Repo dient nur der
 # Dokumentation und Versionierung des Codes.
 data/missions/*/videos/
+
+# Ausgabe des lokalen Dev-Servers (npm run dev), waechst unbegrenzt.
+logs/

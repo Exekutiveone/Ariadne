@@ -10,6 +10,7 @@ from uuid import uuid4
 import cv2
 import numpy as np
 
+from .critical_flags import load_critical_flag_records
 from .path_model import (
     GRADE_ONTOLOGY,
     MODEL_ID,
@@ -52,6 +53,7 @@ def global_dataset_summary(store):
     for mission in store.list():
         mission_dir = store.root / mission.id
         records = _confirmed_annotations(mission_dir)
+        critical_flags = load_critical_flag_records(mission_dir)
         refinements = 0
         for path in (mission_dir / "path_refinements").glob("*/*.json"):
             try:
@@ -65,6 +67,7 @@ def global_dataset_summary(store):
                 "confirmed_frames": len(records),
                 "videos": len({record["video_id"] for record in records}),
                 "refinements": refinements,
+                "critical_flags": len(critical_flags),
             }
         )
     return {
@@ -74,6 +77,7 @@ def global_dataset_summary(store):
             "confirmed_frames": sum(item["confirmed_frames"] for item in missions),
             "videos": sum(item["videos"] for item in missions),
             "refinements": sum(item["refinements"] for item in missions),
+            "critical_flags": sum(item["critical_flags"] for item in missions),
         },
     }
 
@@ -176,6 +180,7 @@ def train_global_path_model(store):
                 "confirmed_frames": len(all_records),
                 "videos": len({record["video_id"] for record in all_records}),
                 "refinements_included": global_dataset_summary(store)["totals"]["refinements"],
+                "critical_flags_included": global_dataset_summary(store)["totals"]["critical_flags"],
             },
             "split": {
                 "strategy": "per_mission_per_video_frame_split",

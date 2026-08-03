@@ -29,6 +29,7 @@
     {
       "direction": "B_TO_A",
       "orientation": "PORTRAIT",
+      "terrain_category": "schotterweg",
       "id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
       "original_name": "Hoch-Format_End -_ Start.MOV",
       "content_type": "video/quicktime",
@@ -38,6 +39,7 @@
     {
       "direction": "A_TO_B",
       "orientation": "PORTRAIT",
+      "terrain_category": "schotterweg",
       "id": "8eba07e3-82e6-4f78-add0-407092cef3b5",
       "original_name": "Hoch-Format_Start -_ End.MOV",
       "content_type": "video/quicktime",
@@ -47,6 +49,7 @@
     {
       "direction": "B_TO_A",
       "orientation": "LANDSCAPE",
+      "terrain_category": "schotterweg",
       "id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
       "original_name": "Quer-Format_End -_ Start.MOV",
       "content_type": "video/quicktime",
@@ -56,6 +59,7 @@
     {
       "direction": "A_TO_B",
       "orientation": "LANDSCAPE",
+      "terrain_category": "schotterweg",
       "id": "9e24cfa3-3e26-4b9f-8c31-4592227cad42",
       "original_name": "Quer-Format_Start -_ End  .MOV",
       "content_type": "video/quicktime",

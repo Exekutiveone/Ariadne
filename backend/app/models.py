@@ -35,6 +35,25 @@ class SurveyPayload(BaseModel):
 class VideoMeta(BaseModel):
     direction: Literal["A_TO_B", "B_TO_A"]
     orientation: Literal["PORTRAIT", "LANDSCAPE"]
+    terrain_category: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def normalize_terrain_category(self):
+        if self.terrain_category is not None:
+            value = self.terrain_category.strip()
+            self.terrain_category = value or None
+        return self
+
+
+class VideoTerrainCategoryInput(BaseModel):
+    terrain_category: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def normalize_terrain_category(self):
+        if self.terrain_category is not None:
+            value = self.terrain_category.strip()
+            self.terrain_category = value or None
+        return self
 
 
 class StoredVideo(VideoMeta):
@@ -104,3 +123,31 @@ class PathRefinementInput(BaseModel):
     y: float = Field(ge=0, le=1)
     expected_kind: Literal["missed_label", "invented_path"]
     action: Literal["accept_model"] = "accept_model"
+
+
+class TerrainTrainingInput(BaseModel):
+    """Parameter eines Terrain-Trainingslaufs.
+
+    Die Vorgabewerte spiegeln DEFAULT_FRAME_STRIDE und
+    DEFAULT_CONFIDENCE_THRESHOLD aus `terrain_model`; dort liegt die fachliche
+    Begründung. Hier stehen sie als Literale, weil `terrain_model` dieses Modul
+    importiert und ein Rückimport zirkulär wäre.
+    """
+
+    frame_stride: int = Field(default=15, ge=1, le=600)
+    confidence_threshold: float = Field(default=0.6, ge=0.05, le=0.99)
+
+
+class TerrainVideoPredictionInput(BaseModel):
+    frame_stride: int = Field(default=15, ge=1, le=600)
+    confidence_threshold: float | None = Field(default=None, ge=0.05, le=0.99)
+
+
+class CriticalFlagInput(BaseModel):
+    """Meldung eines grob falschen Frames: Aufnahme abseits des befahrbaren
+    Bereichs, in der trotzdem Weg erkannt wird."""
+
+    severity: int = Field(default=3, ge=1, le=5)
+    brush_mask: GroundTruthMask | None = None
+    note: str = Field(default="", max_length=1000)
+    annotator: str = Field(default="human", min_length=1, max_length=80)

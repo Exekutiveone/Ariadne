@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 import traceback
 from datetime import datetime, timezone
@@ -28,17 +27,12 @@ from .path_model import (
     symmetric_metrics,
 )
 from .processor import video_path
+from .runtime_paths import runtime_root
 from .storage import MissionStore
 
 
 def _runtime_root():
-    configured = os.getenv("ARIADNE_RUNTIME_DIR")
-    if configured:
-        return Path(configured).expanduser().resolve()
-    local_app_data = os.getenv("LOCALAPPDATA")
-    if local_app_data:
-        return Path(local_app_data) / "Ariadne" / "runtime"
-    return Path(tempfile.gettempdir()) / "ariadne-runtime"
+    return runtime_root()
 
 
 def _analysis_dir(missions_root: Path, model_run_id: str, mission_id: str, video_id: str):

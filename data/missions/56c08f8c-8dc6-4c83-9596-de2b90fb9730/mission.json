@@ -29,6 +29,7 @@
     {
       "direction": "A_TO_B",
       "orientation": "PORTRAIT",
+      "terrain_category": "walduntergrund",
       "id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
       "original_name": "IMG_9742.MOV",
       "content_type": "video/quicktime",
@@ -38,6 +39,7 @@
     {
       "direction": "B_TO_A",
       "orientation": "PORTRAIT",
+      "terrain_category": "walduntergrund",
       "id": "e951a589-b376-409c-a072-be2d7f110bd7",
       "original_name": "IMG_9743.MOV",
       "content_type": "video/quicktime",

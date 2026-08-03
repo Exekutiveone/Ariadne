@@ -39,6 +39,7 @@ def _client(tmp_path, monkeypatch):
                     {
                         "direction": "A_TO_B",
                         "orientation": "LANDSCAPE",
+                        "terrain_category": "schotterweg",
                         "id": VIDEO_ID,
                         "original_name": "test.mp4",
                         "content_type": "video/mp4",
@@ -134,6 +135,7 @@ def test_original_video_frames_accept_editable_polygons_and_skips(tmp_path, monk
     assert manifest.json()["automatic_processing_started"] is False
     assert manifest.json()["videos"][0]["total_frames"] == 20
     assert manifest.json()["videos"][0]["fps"] == 10
+    assert manifest.json()["videos"][0]["terrain_category"] == "schotterweg"
 
     polygon = {"id": "path-1", "class_id": "traversable", "points": [[0.1, 0.8], [0.5, 0.35], [0.9, 0.8]]}
     url = f"/api/v1/missions/{MISSION_ID}/ground-truth/{VIDEO_ID}/5"

@@ -27,4 +27,10 @@ def test_global_dashboard_counts_labels_and_refinements_across_missions(tmp_path
 
     summary = global_dataset_summary(store)
 
-    assert summary["totals"] == {"missions": 2, "confirmed_frames": 2, "videos": 2, "refinements": 2}
+    assert summary["totals"] == {
+        "missions": 2,
+        "confirmed_frames": 2,
+        "videos": 2,
+        "refinements": 2,
+        "critical_flags": 0,
+    }
