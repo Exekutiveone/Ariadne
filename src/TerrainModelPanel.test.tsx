@@ -114,7 +114,9 @@ test('marks frames below the confidence threshold as uncertain instead of assign
 
   fireEvent.click(screen.getByRole('button', {name: 'VIDEO KLASSIFIZIEREN'}))
 
-  expect(await screen.findByText(/1 unsichere Frames unterhalb 60,0 %/)).toBeInTheDocument()
+  // Grosszuegiger Timeout: die Klassifizierung durchlaeuft zwei Ladezyklen und
+  // die Vorgabe von 1000 ms reisst unter Last gelegentlich.
+  expect(await screen.findByText(/1 unsichere Frames unterhalb 60,0 %/, undefined, {timeout: 4000})).toBeInTheDocument()
   expect(screen.getByText('Frame 31')).toBeInTheDocument()
   expect(screen.getByText(/unsicher, am ehesten Walduntergrund \(52,0 %\)/)).toBeInTheDocument()
   // Die sicheren Frames tauchen in der Unsicher-Liste nicht auf.

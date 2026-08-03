@@ -122,6 +122,20 @@ export type GlobalModelDashboardData = {
   dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}[]; totals: {missions: number; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}}
   model: GlobalPathModelResult | null
 }
+/* Run-Registry: ein Run ist genau ein Originalvideo. */
+export type RunStatus = 'unlabeled' | 'queued_for_labeling' | 'labeled' | 'training_ready'
+export type RegistryRun = {run_id: string; mission_id: string; video_id: string; mission_name: string; original_name: string; video_available: boolean; size_bytes: number; status: RunStatus; status_label: string; terrain_category: string | null; note: string; discovered_at: string; updated_at: string}
+export type RegistryListing = {
+  schema_version: string; database: string
+  scan: {added: number; removed: string[]; total: number | null}
+  statuses: {value: RunStatus; label: string}[]
+  counts: Record<RunStatus, number>
+  totals: {runs: number; with_terrain_category: number; missing_video_file: number}
+  terrain_categories: {terrain_category: string; runs: number}[]
+  runs: RegistryRun[]
+  note: string
+}
+
 /* Korridor-Bewertung im Bildraum: deterministische Geometrie auf der Maske, kein ML. */
 export type CorridorStatus = 'free' | 'blocked' | 'uncertain'
 export type CorridorResult = {corridor: 'mitte' | 'rechts' | 'links'; label: string; meaning: string; status: CorridorStatus; status_label: string; reason: string; rows: {evaluated: number; free: number; uncertain: number; blocked: number}; bottom_center_x: number}

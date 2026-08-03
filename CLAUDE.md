@@ -24,6 +24,8 @@ werden dem Nutzer auf Deutsch angezeigt. Bezeichner im Code sind Englisch.
 - `backend/app/corridor.py` — Fluchtpunkt-Geometrie und Korridor-Bewertung im
   Bildraum. Rein deterministisch, kein ML und keine Abhaengigkeit zu einem Modell;
   die Verdrahtung mit der Wegmaske steht in `global_path_model.py`.
+- `backend/app/run_registry.py` — Run-Registry (ein Run = ein Originalvideo).
+  SQLite unter `data/registry.sqlite`, Scan des Videoordners bei jedem Lesezugriff.
 - `backend/app/annotations.py`, `labeling.py` — manuelle Ground-Truth-Polygone.
 - `src/` — React-Frontend. `AnalysisView.tsx` (Player mit Overlays) und
   `GroundTruthLabeler.tsx` (Polygonwerkzeug) sind die beiden grossen Komponenten.
@@ -101,5 +103,14 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   ausserhalb des Bildes fuehren zu "unsicher", nicht zu "frei".
 - `corridor.py` kennt weder Modell noch Mission und bekommt nur Masken. Diese
   Trennung erhalten — sie macht die Geometrie ohne Modell testbar.
+- Die Run-Registry haelt keine zweite Wahrheit: die Terrainkategorie wird nach
+  `mission.json` durchgeschrieben und beim Scan von dort zurueckgespiegelt. Nur
+  Status und Notiz leben ausschliesslich in `data/registry.sqlite`. Diese Datei
+  ist Handarbeit, aus dem Videoordner **nicht** rekonstruierbar und gehoert in
+  eine Sicherung; sie ist als Binaerformat aus Git ausgenommen.
+- SQLite-Verbindungen leben nur fuer die Dauer eines Aufrufs und werden
+  ausdruecklich geschlossen — `with sqlite3.connect(...)` committet zwar,
+  schliesst aber nicht, und eine offene Datei waere unter OneDrive eine
+  Sync-Sperre. Kein WAL, aus demselben Grund.
 - Die Ausgabe ist eine KI-gestuetzte Einschaetzung und ausdruecklich **keine
   sicherheitsrelevante Fahrfreigabe**. Diesen Vorbehalt in Berichten und UI beibehalten.

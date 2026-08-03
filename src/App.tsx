@@ -3,6 +3,7 @@ import SurveyMap from './SurveyMap'
 import AnalysisView from './AnalysisView'
 import GroundTruthLabeler from './GroundTruthLabeler'
 import GlobalModelDashboard from './GlobalModelDashboard'
+import RunRegistry from './RunRegistry'
 import {getAnalysis, getReconstruction, getSegmentation, listMissions, uploadMission} from './api'
 import {terrainCategoryLabel, TERRAIN_CATEGORY_OPTIONS} from './terrainCategories'
 import type {Analysis, Mission, Point, Reconstruction, Segmentation, VideoInput} from './types'
@@ -26,6 +27,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<{mission: Mission; data: Analysis; reconstruction: Reconstruction; segmentation: Segmentation} | null>(null)
   const [labelingMission, setLabelingMission] = useState<Mission | null>(null)
   const [modelCenter, setModelCenter] = useState(false)
+  const [registry, setRegistry] = useState(false)
 
   const refresh = () => listMissions().then(setMissions).catch(error => setError(error.message))
 
@@ -151,6 +153,14 @@ export default function App() {
     )
   }
 
+  if (registry) {
+    return (
+      <main>
+        <RunRegistry onClose={() => {setRegistry(false); void refresh()}} />
+      </main>
+    )
+  }
+
   return (
     <main>
       <header>
@@ -160,6 +170,7 @@ export default function App() {
           <p>Manuelle Waldbegehung als belastbares Mission Package erfassen.</p>
         </div>
         <div className="header-actions">
+          <button onClick={() => setRegistry(true)}>RUN-REGISTRY</button>
           <button onClick={() => setModelCenter(true)}>KI-MODELLZENTRUM</button>
           <div className="status"><i />SYSTEM BEREIT</div>
         </div>

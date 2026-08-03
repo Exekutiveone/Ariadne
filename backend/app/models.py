@@ -125,6 +125,27 @@ class PathRefinementInput(BaseModel):
     action: Literal["accept_model"] = "accept_model"
 
 
+class RunRegistryUpdateInput(BaseModel):
+    """Teilaenderung eines Runs.
+
+    Alle Felder sind optional; nur mitgeschickte werden angefasst. Fuer
+    `terrain_category` ist deshalb der Unterschied zwischen "nicht mitgeschickt"
+    und "ausdruecklich auf null gesetzt" wichtig — er wird ueber
+    `model_fields_set` ausgewertet, nicht ueber den Wert.
+    """
+
+    status: Literal["unlabeled", "queued_for_labeling", "labeled", "training_ready"] | None = None
+    terrain_category: str | None = Field(default=None, max_length=120)
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def normalize_terrain_category(self):
+        if self.terrain_category is not None:
+            value = self.terrain_category.strip()
+            self.terrain_category = value or None
+        return self
+
+
 class TerrainTrainingInput(BaseModel):
     """Parameter eines Terrain-Trainingslaufs.
 

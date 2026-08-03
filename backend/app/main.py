@@ -29,6 +29,7 @@ from .models import (
     GroundTruthAnnotationInput,
     MissionRecord,
     PathRefinementInput,
+    RunRegistryUpdateInput,
     SurveyPayload,
     TerrainTrainingInput,
     TerrainVideoPredictionInput,
@@ -39,6 +40,7 @@ from .path_model import current_path_model_dir, predict_path_frame, save_path_re
 from .path_training_jobs import start_training_job, training_job_status
 from .processor import autonomous_loop, current_run_dir
 from .reconstruction import current_reconstruction_dir, reconstruct
+from .run_registry import list_runs, scan_runs, update_run
 from .segmentation import current_segmentation_dir, process_segmentation
 from .storage import MissionStore
 from .terrain_model import (
@@ -132,6 +134,32 @@ def global_video_analyze_result(mission_id: str, video_id: str):
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/registry/runs")
+def registry_runs(rescan: bool = True):
+    return list_runs(store, rescan=rescan)
+
+
+@app.post("/api/v1/registry/scan")
+def registry_scan():
+    return scan_runs(store)
+
+
+@app.patch("/api/v1/registry/runs/{mission_id}/{video_id}")
+def registry_update_run(mission_id: str, video_id: str, payload: RunRegistryUpdateInput):
+    try:
+        return update_run(
+            store,
+            f"{mission_id}/{video_id}",
+            status=payload.status,
+            terrain_category=(payload.terrain_category if "terrain_category" in payload.model_fields_set else Ellipsis),
+            note=payload.note,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
 
 
