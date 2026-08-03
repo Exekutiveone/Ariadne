@@ -12,8 +12,11 @@ __pycache__/
 # Alles Folgende ist entweder Duplikat oder aus diesen Daten neu berechenbar.
 
 # Importordner: enthalten nur Duplikate der persistenten Missionsvideos.
-data/Mission1/
-data/Mission 2/
+# Bewusst als Muster, nicht einzeln aufgezaehlt — beim Anlegen von
+# "Mission 3" wurden sonst 2,0 GB Video mitgestaged, weil der neue Ordner
+# in keiner Liste stand.
+data/Mission*/
+data/mission*/
 
 # Analyse-Artefakte: werden bei jedem Lauf vollstaendig neu geschrieben
 # (aktuell 1.498 Dateien, 470 MB, darunter 333 MB JSON und 960 Evidenz-JPGs).

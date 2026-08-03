@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0",
+  "scope": "global_cross_mission",
+  "run_id": "global-path-20260803T190721Z-2f4f5068",
+  "created_at": "2026-08-03T19:07:21.244829+00:00",
+  "model": {
+    "id": "ariadne-cpu-path-rff",
+    "type": "random_fourier_kernel_ridge_pixel_classifier",
+    "hardware": "CPU",
+    "cloud_used": false,
+    "input_width": 160,
+    "feature_count": 22,
+    "random_features": 64,
+    "threshold": 0.069551
+  },
+  "dataset": {
+    "missions": [
+      {
+        "mission_id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+        "name": "Misson  2",
+        "confirmed_frames": 99,
+        "train_frames": 80,
+        "validation_frames": 19
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "name": "Mission 1",
+        "confirmed_frames": 152,
+        "train_frames": 123,
+        "validation_frames": 29
+      }
+    ],
+    "confirmed_frames": 251,
+    "videos": 4,
+    "refinements_included": 20
+  },
+  "split": {
+    "strategy": "per_mission_per_video_frame_split",
+    "train_frames": 203,
+    "validation_frames": 48,
+    "training_pixels_sampled": 176380,
+    "same_frame_in_train_and_validation": false
+  },
+  "scoring": {
+    "rule": "50 percent missed labeled path plus 50 percent invented path",
+    "threshold_selection": {
+      "tp": 655507,
+      "tn": 1078452,
+      "fp": 115555,
+      "fn": 52246,
+      "missed_label_fraction": 0.07382,
+      "invented_path_fraction": 0.09678,
+      "symmetric_penalty_points": 8.53,
+      "symmetric_score": 91.47,
+      "iou": 0.79619,
+      "dice": 0.88653,
+      "precision": 0.85014,
+      "recall": 0.92618
+    }
+  },
+  "train_metrics": {
+    "tp": 2807946,
+    "tn": 4544610,
+    "fp": 473512,
+    "fn": 218732,
+    "missed_label_fraction": 0.07227,
+    "invented_path_fraction": 0.09436,
+    "symmetric_penalty_points": 8.33,
+    "symmetric_score": 91.67,
+    "iou": 0.80223,
+    "dice": 0.89026,
+    "precision": 0.8557,
+    "recall": 0.92773
+  },
+  "validation_metrics": {
+    "tp": 655507,
+    "tn": 1078452,
+    "fp": 115555,
+    "fn": 52246,
+    "missed_label_fraction": 0.07382,
+    "invented_path_fraction": 0.09678,
+    "symmetric_penalty_points": 8.53,
+    "symmetric_score": 91.47,
+    "iou": 0.79619,
+    "dice": 0.88653,
+    "precision": 0.85014,
+    "recall": 0.92618
+  },
+  "evidence": [
+    {
+      "kind": "best",
+      "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+      "frame_index": 750,
+      "timestamp_ms": 25010,
+      "metrics": {
+        "tp": 1029,
+        "tn": 12973,
+        "fp": 398,
+        "fn": 0,
+        "missed_label_fraction": 0.0,
+        "invented_path_fraction": 0.02977,
+        "symmetric_penalty_points": 1.49,
+        "symmetric_score": 98.51,
+        "iou": 0.72109,
+        "dice": 0.83795,
+        "precision": 0.72109,
+        "recall": 1.0
+      },
+      "image_url": "/api/v1/path-model/global/evidence/best-865b5ff9-0000750.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    },
+    {
+      "kind": "median",
+      "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+      "frame_index": 1900,
+      "timestamp_ms": 63358,
+      "metrics": {
+        "tp": 14949,
+        "tn": 26458,
+        "fp": 4017,
+        "fn": 16,
+        "missed_label_fraction": 0.00107,
+        "invented_path_fraction": 0.13181,
+        "symmetric_penalty_points": 6.64,
+        "symmetric_score": 93.36,
+        "iou": 0.78754,
+        "dice": 0.88114,
+        "precision": 0.7882,
+        "recall": 0.99893
+      },
+      "image_url": "/api/v1/path-model/global/evidence/median-66ae6f3a-0001900.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    },
+    {
+      "kind": "worst",
+      "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+      "frame_index": 40,
+      "timestamp_ms": 1334,
+      "metrics": {
+        "tp": 16053,
+        "tn": 19156,
+        "fp": 685,
+        "fn": 9546,
+        "missed_label_fraction": 0.37291,
+        "invented_path_fraction": 0.03452,
+        "symmetric_penalty_points": 20.37,
+        "symmetric_score": 79.63,
+        "iou": 0.61075,
+        "dice": 0.75834,
+        "precision": 0.95908,
+        "recall": 0.62709
+      },
+      "image_url": "/api/v1/path-model/global/evidence/worst-66ae6f3a-0000040.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    }
+  ],
+  "runtime_seconds": 43.657,
+  "limitations": [
+    "Cross-mission CPU baseline; more diverse missions improve generalization.",
+    "This is not a safety-relevant driving approval."
+  ]
+}

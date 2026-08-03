@@ -11,7 +11,17 @@ vi.mock('./api', () => ({
   getGroundTruth: async () => null,
   listGroundTruth: async () => ({schema_version: '2.0', mission_id: 'mission-1', ontology: {}, counts: {total: 1, draft: 0, confirmed: 1, skipped: 0}, items: [{video_id: 'video-1', frame_index: 0, timestamp_ms: 0, source_frame_hash: 'a'.repeat(64), status: 'confirmed', annotator: 'Simon', revision: 1, updated_at: '2026-08-03T00:00:00Z', statistics: {polygon_count: 1, point_count: 4, classes: {traversable: 1}}, polygons: [{id: 'path-1', class_id: 'traversable', points: [[.1, .9], [.35, .4], [.65, .4], [.9, .9]]}]}]}),
   saveGroundTruth: vi.fn(),
+  predictPathFrame: async () => ({
+    schema_version: '1.0', model_run_id: 'path-run-1', video_id: 'video-1', frame_index: 0, timestamp_ms: 0,
+    mask: {width: 2, height: 2, rle: [1, 4]},
+    grade_mask: {width: 2, height: 2, rle: [1, 1, 2, 1, 4, 1, 5, 1]},
+    grade_ontology: GRADE_ONTOLOGY_FALLBACK,
+    grading: {margin: 'm', threshold: .3, bands: {safe_min_margin: .6, good_min_margin: .25, risky_min_margin: -.2}, problem_min_area_fraction: .002, problem_neighbourhood_px: 9, problem_clip_px: 25, smoothing: '3x3', note: 'KI-Einschätzung der Befahrbarkeit, keine sicherheitsrelevante Fahrfreigabe.'},
+    path_fraction: .42, mean_separation: .2, confidence_note: '', source: 'cpu',
+  }),
 }))
+
+import {GRADE_ONTOLOGY_FALLBACK} from './masks'
 
 import AnalysisView from './AnalysisView'
 
@@ -34,8 +44,7 @@ const terrain = {
   evidence: {representative: true, reasons: ['temporally_stable_corridor'], overlay_url: '/evidence.jpg'},
 }
 
-test('offers automatic and own-label overlays while keeping the safety boundary visible', async () => {
-  render(<AnalysisView
+const mount = () => render(<AnalysisView
     mission={{id: 'mission-1', name: 'Mission 1', status: 'READY_FOR_GOAL_2', created_at: '', route: [], videos: []} as any}
     data={{keyframes: []} as any}
     reconstruction={{
@@ -61,7 +70,10 @@ test('offers automatic and own-label overlays while keeping the safety boundary 
     onClose={() => undefined}
   />)
 
-  for (const label of ['Original', 'Boden', 'Befahrbarkeit', 'Eigene Labels']) {
+test('offers automatic and own-label overlays while keeping the safety boundary visible', async () => {
+  mount()
+
+  for (const label of ['Original', 'Boden', 'Befahrbarkeit', 'KI-Abstufung', 'Eigene Labels']) {
     expect(screen.getByRole('button', {name: label})).toBeInTheDocument()
   }
   expect(screen.queryByRole('button', {name: 'Ground Truth'})).not.toBeInTheDocument()
@@ -80,4 +92,19 @@ test('offers automatic and own-label overlays while keeping the safety boundary 
   expect(await screen.findByRole('combobox', {name: 'Gespeichertes eigenes Label'})).toBeInTheDocument()
   expect(screen.getByText('Manuelle Polygonmaske')).toBeInTheDocument()
   expect(screen.getByRole('slider', {name: 'Eigene-Label-Deckkraft'})).toHaveValue('0.3')
+})
+
+test('shows the graded AI overlay as its own player mode with legend and safety note', async () => {
+  mount()
+
+  fireEvent.click(screen.getByRole('button', {name: 'KI-Abstufung'}))
+
+  expect(await screen.findByText('Sicher befahrbar')).toBeInTheDocument()
+  for (const label of ['Gut befahrbar', 'Knapp befahrbar', 'Potenziell befahrbar, mit Risiko', 'Problemzone / Hindernis']) {
+    expect(screen.getByText(label)).toBeInTheDocument()
+  }
+  expect(screen.getByText(/keine sicherheitsrelevante Fahrfreigabe/)).toBeInTheDocument()
+  expect(screen.getByText(/Modell path-run-1/)).toBeInTheDocument()
+  // Der Vorbehalt muss auch in der Statuszeile ueber dem Video stehen.
+  expect(screen.getByText(/KI-ABSTUFUNG · 42 % WEG · KEINE FAHRFREIGABE/)).toBeInTheDocument()
 })

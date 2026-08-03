@@ -1,6 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react'
 import {getGroundTruth, getLabelingVideos, getPathModel, getPathTrainingJob, listGroundTruth, predictPathFrame, runSegmentation, saveGroundTruth, savePathRefinement, startPathTrainingJob, trainPathModel} from './api'
+import GradeLegend from './GradeLegend'
+import {AI_BINARY_PALETTE, COMPARISON_LEGEND, COMPARISON_PALETTE, paintMaskCanvas, paletteFromGradeOntology, rleValueAt} from './masks'
 import type {GroundTruthAnnotation, GroundTruthSummary, GroundTruthStatus, LabelingVideo, Mission, NormalizedPoint, PathModelResult, PathPrediction, PathTrainingJob} from './types'
 
 type Tool = 'add' | 'edit' | 'move' | 'pan'
@@ -18,17 +20,9 @@ const copyPoints = (points: NormalizedPoint[]) => points.map(([x, y]) => [x, y] 
 const clamp = (value: number, minimum = 0, maximum = 1) => Math.max(minimum, Math.min(maximum, value))
 const timestampFor = (frameIndex: number, fps: number) => Math.round(frameIndex / fps * 1000)
 
-export function rleValueAt(mask: {width: number; height: number; rle: number[]}, point: NormalizedPoint) {
-  const x = Math.min(mask.width - 1, Math.max(0, Math.floor(point[0] * mask.width)))
-  const y = Math.min(mask.height - 1, Math.max(0, Math.floor(point[1] * mask.height)))
-  const target = y * mask.width + x
-  let cursor = 0
-  for (let index = 0; index < mask.rle.length; index += 2) {
-    cursor += mask.rle[index + 1]
-    if (target < cursor) return mask.rle[index]
-  }
-  return 0
-}
+// Liegt jetzt in masks.ts; hier weiterhin exportiert, weil der Labeler die
+// Einstiegsstelle fuer den Refinement-Klick ist.
+export {rleValueAt}
 
 export function buildFrameSelection(total: number, mode: 'stride' | 'count', stride: number, count: number) {
   if (total <= 0) return []
@@ -106,6 +100,7 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
   const [modelTraining, setModelTraining] = useState(false)
   const [pathModel, setPathModel] = useState<PathModelResult | null>(null)
   const [showAiMask, setShowAiMask] = useState(true)
+  const [aiOverlay, setAiOverlay] = useState<'grade' | 'comparison'>('grade')
   const [aiMaskOpacity, setAiMaskOpacity] = useState(.38)
   const [pathPrediction, setPathPrediction] = useState<PathPrediction | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
@@ -178,40 +173,25 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
 
   useEffect(() => {setRefinementSelection(null)}, [activeVideo?.video_id, frameIndex])
 
+  // Beim Refinement muss die Vergleichsmaske sichtbar sein, weil genau deren
+  // rote und gelbe Flaechen angeklickt werden.
+  const effectiveAiOverlay = refinementMode ? 'comparison' : aiOverlay
+  const aiLayer = useMemo(() => {
+    if (!pathPrediction) return {mask: null, palette: AI_BINARY_PALETTE, graded: false}
+    if (effectiveAiOverlay === 'comparison') {
+      return pathPrediction.evaluation
+        ? {mask: pathPrediction.evaluation.comparison_mask, palette: COMPARISON_PALETTE, graded: false}
+        : {mask: pathPrediction.mask, palette: AI_BINARY_PALETTE, graded: false}
+    }
+    return pathPrediction.grade_mask
+      ? {mask: pathPrediction.grade_mask, palette: paletteFromGradeOntology(pathPrediction.grade_ontology), graded: true}
+      : {mask: pathPrediction.mask, palette: AI_BINARY_PALETTE, graded: false}
+  }, [pathPrediction, effectiveAiOverlay])
+
   useEffect(() => {
     const canvas = aiMaskCanvasRef.current
-    if (!canvas) return
-    const context = canvas.getContext('2d')
-    if (!context) return
-    if (!showAiMask || !pathPrediction) {
-      context.clearRect(0, 0, canvas.width, canvas.height)
-      return
-    }
-    const displayMask = pathPrediction.evaluation?.comparison_mask ?? pathPrediction.mask
-    const {width, height, rle} = displayMask
-    canvas.width = width
-    canvas.height = height
-    const image = context.createImageData(width, height)
-    let pixel = 0
-    for (let index = 0; index < rle.length; index += 2) {
-      const value = rle[index]
-      const length = rle[index + 1]
-      if (value > 0) {
-        for (let offset = 0; offset < length; offset++) {
-          const target = (pixel + offset) * 4
-          const colour = pathPrediction.evaluation
-            ? value === 1 ? [58, 214, 92] : value === 2 ? [224, 74, 68] : [239, 196, 55]
-            : [64, 220, 235]
-          image.data[target] = colour[0]
-          image.data[target + 1] = colour[1]
-          image.data[target + 2] = colour[2]
-          image.data[target + 3] = 255
-        }
-      }
-      pixel += length
-    }
-    context.putImageData(image, 0, 0)
-  }, [pathPrediction, showAiMask])
+    if (canvas) paintMaskCanvas(canvas, showAiMask ? aiLayer.mask : null, aiLayer.palette)
+  }, [aiLayer, showAiMask])
 
   useEffect(() => {
     if (!isPlaying || dirty || selectedFrames.length < 2) {
@@ -577,7 +557,15 @@ export default function GroundTruthLabeler({mission, onClose, onProcessingComple
         <div className="ai-mask-controls">
           <label className="toggle-row"><input type="checkbox" checked={showAiMask} disabled={!pathModel} onChange={event => setShowAiMask(event.target.checked)}/><span>KI-Wegmaske anzeigen</span></label>
           <label>KI-Masken-Deckkraft · {Math.round(aiMaskOpacity * 100)} %<input aria-label="KI-Masken-Deckkraft" type="range" min="0.05" max="0.9" step="0.05" value={aiMaskOpacity} disabled={!showAiMask || !pathModel} onChange={event => setAiMaskOpacity(+event.target.value)}/></label>
-          <small>{predictionLoading ? 'KI-Maske wird für diesen Frame berechnet …' : pathPrediction?.evaluation ? `Bewertung dieses Frames: ${pathPrediction.evaluation.metrics.symmetric_score.toFixed(1)} / 100 · Grün korrekt · Rot übersehen · Gelb fälschlich erkannt` : pathPrediction ? `Türkis: KI-erkannt · ${(pathPrediction.path_fraction * 100).toFixed(1)} % des Bildes · kein Ground-Truth-Vergleich für diesen Frame` : pathModel ? 'KI-Maske einschalten, um die Erkennung auf diesem Frame zu sehen.' : 'Trainiere zuerst ein Wegmodell, um dessen Erkennung direkt einzublenden.'}</small>
+          {showAiMask && pathPrediction && <div className="ai-overlay-tabs" role="group" aria-label="Darstellung der KI-Maske">
+            <button className={effectiveAiOverlay === 'grade' ? 'active' : ''} disabled={refinementMode || !pathPrediction.grade_mask} onClick={() => setAiOverlay('grade')}>Abstufung</button>
+            <button className={effectiveAiOverlay === 'comparison' ? 'active' : ''} onClick={() => setAiOverlay('comparison')}>{pathPrediction.evaluation ? 'Vergleich' : 'Einfarbig'}</button>
+          </div>}
+          <small>{predictionLoading ? 'KI-Maske wird für diesen Frame berechnet …' : !pathPrediction ? (pathModel ? 'KI-Maske einschalten, um die Erkennung auf diesem Frame zu sehen.' : 'Trainiere zuerst ein Wegmodell, um dessen Erkennung direkt einzublenden.') : aiLayer.graded ? `Abgestufte KI-Einschätzung · ${(pathPrediction.path_fraction * 100).toFixed(1)} % des Bildes als Weg erkannt` : pathPrediction.evaluation ? `Bewertung dieses Frames: ${pathPrediction.evaluation.metrics.symmetric_score.toFixed(1)} / 100 · Grün korrekt · Rot übersehen · Gelb fälschlich erkannt` : `Türkis: KI-erkannt · ${(pathPrediction.path_fraction * 100).toFixed(1)} % des Bildes · kein Ground-Truth-Vergleich für diesen Frame`}</small>
+          {showAiMask && pathPrediction && (aiLayer.graded
+            ? <GradeLegend ontology={pathPrediction.grade_ontology} mask={pathPrediction.grade_mask} grading={pathPrediction.grading}/>
+            : pathPrediction.evaluation && <div className="grade-legend"><b>Vergleich mit deinem Label</b><ul>{COMPARISON_LEGEND.map(entry => <li key={entry.value}><i style={{background: entry.color, borderColor: entry.color}} aria-hidden="true"/><span>{entry.label}</span></li>)}</ul></div>)}
+          {refinementMode && <small className="refinement-hint">Für das Refinement wird die Vergleichsmaske angezeigt.</small>}
           {pathPrediction?.evaluation && <div className="refinement-controls"><button className={refinementMode ? 'active' : ''} onClick={() => {setRefinementMode(current => !current); setRefinementSelection(null)}}>{refinementMode ? 'Refinement beenden' : 'Refinement starten'}</button><span>{pathPrediction.evaluation.refinement_count} gespeicherte Korrekturen</span>{refinementMode && <small>Klicke eine rote oder gelbe zusammenhängende Fläche an.</small>}{refinementSelection && <button className="confirm-refinement" disabled={refinementSaving} onClick={() => void confirmRefinement()}>{refinementSaving ? 'WIRD GESPEICHERT …' : 'KI HATTE HIER RECHT'}</button>}</div>}
         </div>
         <div className="polygon-tool-grid"><button className={tool === 'add' ? 'active' : ''} onClick={() => setTool('add')}>＋ Punkt hinzufügen</button><button className={tool === 'edit' ? 'active' : ''} disabled={!points.length} onClick={() => setTool('edit')}>Punkt auswählen</button><button className={tool === 'move' ? 'active' : ''} disabled={!hasPolygon} onClick={() => setTool('move')}>Polygon verschieben</button><button className={tool === 'pan' ? 'active' : ''} onClick={() => setTool('pan')}>✋ Bild verschieben</button></div>

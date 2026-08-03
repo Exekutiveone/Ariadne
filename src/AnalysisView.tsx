@@ -1,7 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent} from 'react'
 import {CircleMarker, MapContainer, Polyline, TileLayer} from 'react-leaflet'
-import {getGroundTruth, listGroundTruth, saveGroundTruth} from './api'
+import {getGroundTruth, listGroundTruth, predictPathFrame, saveGroundTruth} from './api'
+import GradeLegend from './GradeLegend'
+import {decodeRleValues, drawMaskScaled, encodeRleValues, paletteFromGradeOntology} from './masks'
+import type {MaskPalette} from './masks'
 import type {
   Analysis,
   GroundTruthStatus,
@@ -9,6 +12,7 @@ import type {
   GroundTruthValue,
   Mission,
   OverlayMode,
+  PathPrediction,
   Reconstruction,
   Segmentation,
   SegmentationFrame,
@@ -25,6 +29,7 @@ const modes: {id: OverlayMode; label: string}[] = [
   {id: 'original', label: 'Original'},
   {id: 'ground', label: 'Boden'},
   {id: 'traversability', label: 'Befahrbarkeit'},
+  {id: 'ai_grade', label: 'KI-Abstufung'},
   {id: 'labels', label: 'Eigene Labels'},
 ]
 
@@ -122,74 +127,10 @@ function tracePolygon(context: CanvasRenderingContext2D, polygon: [number, numbe
   return true
 }
 
-function renderRleMask(
-  context: CanvasRenderingContext2D,
-  mask: TerrainMask,
-  targetWidth: number,
-  targetHeight: number,
-  opacity: number,
-  palette: Record<number, [number, number, number, number]>,
-) {
-  if (mask.width < 1 || mask.height < 1 || !mask.rle.length) return
-  const source = document.createElement('canvas')
-  source.width = mask.width
-  source.height = mask.height
-  const sourceContext = source.getContext('2d')
-  if (!sourceContext) return
-  const image = sourceContext.createImageData(mask.width, mask.height)
-  const pixelCount = mask.width * mask.height
-  let pixel = 0
-  for (let index = 0; index + 1 < mask.rle.length && pixel < pixelCount; index += 2) {
-    const colour = palette[mask.rle[index]] ?? [0, 0, 0, 0]
-    const end = Math.min(pixelCount, pixel + Math.max(0, Math.floor(mask.rle[index + 1])))
-    for (; pixel < end; pixel++) {
-      const offset = pixel * 4
-      image.data[offset] = colour[0]
-      image.data[offset + 1] = colour[1]
-      image.data[offset + 2] = colour[2]
-      image.data[offset + 3] = colour[3]
-    }
-  }
-  sourceContext.putImageData(image, 0, 0)
-  context.save()
-  context.globalAlpha = opacity
-  context.imageSmoothingEnabled = false
-  context.drawImage(source, 0, 0, targetWidth, targetHeight)
-  context.restore()
-}
-
-function decodeRleValues(mask: TerrainMask) {
-  const values = new Array<number>(mask.width * mask.height).fill(0)
-  let pixel = 0
-  for (let index = 0; index + 1 < mask.rle.length && pixel < values.length; index += 2) {
-    const value = mask.rle[index]
-    const end = Math.min(values.length, pixel + Math.max(0, Math.floor(mask.rle[index + 1])))
-    values.fill(value, pixel, end)
-    pixel = end
-  }
-  return values
-}
-
-function encodeGroundTruthValues(values: number[], width: number, height: number): TerrainMask {
-  const size = width * height
-  const normalized = values.length === size ? values : new Array<number>(size).fill(0)
-  const rle: number[] = []
-  if (size) {
-    let previous = normalized[0] ?? 0
-    let count = 1
-    for (let index = 1; index < size; index++) {
-      const value = normalized[index] ?? 0
-      if (value === previous) count++
-      else {
-        rle.push(previous, count)
-        previous = value
-        count = 1
-      }
-    }
-    rle.push(previous, count)
-  }
-  return {width, height, rle}
-}
+// Malroutine und RLE-Kodierung liegen jetzt in masks.ts und werden von allen
+// drei Views gemeinsam genutzt.
+const renderRleMask = drawMaskScaled
+const encodeGroundTruthValues = encodeRleValues
 
 function clipToEvaluatedDriveArea(
   context: CanvasRenderingContext2D,
@@ -234,8 +175,10 @@ function drawOverlay(args: {
   manualPolygons: [number, number][][]
   manualOpacity: number
   showManualLabels: boolean
+  gradeMask?: TerrainMask | null
+  gradePalette: MaskPalette
 }) {
-  const {canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels} = args
+  const {canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette} = args
   const bounds = canvas.getBoundingClientRect()
   if (!bounds.width || !bounds.height) return
   const ratio = Math.min(2, window.devicePixelRatio || 1)
@@ -265,6 +208,13 @@ function drawOverlay(args: {
     }
   }
   if (mode === 'labels') {drawManualPolygons(); return}
+  // Die Abstufung stammt aus der Live-Inferenz, nicht aus dem gespeicherten
+  // Segmentierungslauf, und braucht deshalb weder frame noch terrain.
+  if (mode === 'ai_grade') {
+    if (gradeMask) renderRleMask(context, gradeMask, bounds.width, bounds.height, opacity, gradePalette)
+    if (showManualLabels) drawManualPolygons()
+    return
+  }
   if (mode === 'original' || !frame) return
 
   if (!terrain) {if (showManualLabels) drawManualPolygons(); return}
@@ -403,6 +353,9 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
   const [showAiSuggestion, setShowAiSuggestion] = useState(true)
   const [showManualLabels, setShowManualLabels] = useState(false)
   const [manualOpacity, setManualOpacity] = useState(.3)
+  const [gradePrediction, setGradePrediction] = useState<PathPrediction | null>(null)
+  const [gradeLoading, setGradeLoading] = useState(false)
+  const [gradeMessage, setGradeMessage] = useState('')
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingRef = useRef(false)
@@ -516,11 +469,28 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     return () => {cancelled = true}
   }, [mission.id, active, frame?.frame_index, terrain?.source_frame_hash])
 
+  // KI-Abstufung des aktuell sichtbaren Frames. Während der Wiedergabe wird
+  // nicht nachgeladen, damit nicht pro Frame ein Request entsteht.
+  const gradeFrameIndex = result ? Math.max(0, Math.round(time * result.fps)) : 0
+  useEffect(() => {
+    if (mode !== 'ai_grade' || !traversal || playing) return
+    let cancelled = false
+    setGradeLoading(true)
+    void predictPathFrame(mission.id, traversal.video_id, gradeFrameIndex)
+      .then(prediction => {if (!cancelled) {setGradePrediction(prediction); setGradeMessage('')}})
+      .catch(error => {if (!cancelled) {setGradePrediction(null); setGradeMessage(error instanceof Error ? error.message : 'KI-Abstufung ist für diese Mission nicht verfügbar')}})
+      .finally(() => {if (!cancelled) setGradeLoading(false)})
+    return () => {cancelled = true}
+  }, [mode, mission.id, traversal?.video_id, gradeFrameIndex, playing])
+
+  const gradePalette = useMemo(() => paletteFromGradeOntology(gradePrediction?.grade_ontology), [gradePrediction?.grade_ontology])
+  const gradeMask = mode === 'ai_grade' ? gradePrediction?.grade_mask ?? null : null
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawOverlay({canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels})
-  }, [mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, overlayRevision])
+    drawOverlay({canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette})
+  }, [mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette, overlayRevision])
 
   const choose = (videoId: string) => {
     if (mode === 'annotation' && annotationDirty) {
@@ -768,6 +738,7 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
             {mode === 'original' && 'ORIGINALVIDEO · KEIN OVERLAY'}
             {mode === 'ground' && (terrain ? `BODEN ${percent(terrain.ground.visible_ratio)} · KI-EVIDENZ ${percent(terrain.ground.confidence)}` : 'BODEN NICHT BEWERTBAR')}
             {mode === 'traversability' && (terrain ? `${overallStyle.label.toUpperCase()} · KI-EVIDENZ ${percent(terrain.traversability.overall_confidence)}` : 'NICHT BEWERTBAR')}
+            {mode === 'ai_grade' && (gradePrediction?.grade_mask ? `KI-ABSTUFUNG · ${percent(gradePrediction.path_fraction)} WEG · KEINE FAHRFREIGABE` : gradeLoading ? 'KI-ABSTUFUNG WIRD BERECHNET …' : 'KI-ABSTUFUNG NICHT VERFÜGBAR')}
             {mode === 'labels' && (nearestManualLabel ? `EIGENES LABEL · FRAME ${nearestManualLabel.frame_index + 1} · ${nearestManualLabel.status.toUpperCase()}` : 'KEIN EIGENES LABEL AN DIESEM FRAME')}
             {mode === 'annotation' && `${annotationStatus === 'confirmed' ? 'GROUND TRUTH BESTÄTIGT' : annotationDirty ? 'UNGESPEICHERTE ÄNDERUNG' : annotationStatus === 'draft' ? 'ENTWURF' : 'NEUER FRAME'} · ${percent(annotationLabelledFraction)} MARKIERT`}
             {frame && ` · FRAME ${frame.frame_index} · Δ ${Math.max(0, Math.round(time * 1000 - frame.timestamp_ms))} ms`}
@@ -784,12 +755,21 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       <aside className="player-controls">
         <h2>Darstellung</h2>
         <div className="mode-switch">{modes.map(item => <button key={item.id} className={mode === item.id ? 'active' : ''} aria-pressed={mode === item.id} onClick={() => {setMode(item.id); setSelectedRegionId(null); if (item.id === 'annotation') videoRef.current?.pause()}}>{item.label}</button>)}</div>
-        {(mode === 'ground' || mode === 'traversability') && <label>KI-Overlay-Deckkraft · {Math.round(opacity * 100)} %<input type="range" min="0.1" max="0.9" step="0.05" value={opacity} onChange={event => setOpacity(+event.target.value)}/></label>}
+        {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && <label>KI-Overlay-Deckkraft · {Math.round(opacity * 100)} %<input type="range" min="0.1" max="0.9" step="0.05" value={opacity} onChange={event => setOpacity(+event.target.value)}/></label>}
 
-        {(mode === 'ground' || mode === 'traversability') && <label className="corridor-toggle"><input type="checkbox" checked={showManualLabels} onChange={event => setShowManualLabels(event.target.checked)}/>Eigene Labels zusätzlich überlagern</label>}
+        {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && <label className="corridor-toggle"><input type="checkbox" checked={showManualLabels} onChange={event => setShowManualLabels(event.target.checked)}/>Eigene Labels zusätzlich überlagern</label>}
         {(mode === 'labels' || showManualLabels) && <label>Eigene-Label-Deckkraft · {Math.round(manualOpacity * 100)} %<input aria-label="Eigene-Label-Deckkraft" type="range" min="0.05" max="0.9" step="0.05" value={manualOpacity} onChange={event => setManualOpacity(+event.target.value)}/></label>}
 
         {mode === 'original' && <div className="detection-detail"><b>Unverändertes Originalvideo</b><span>Keine Analysemaske und keine Fahrbewertung eingeblendet.</span></div>}
+        {mode === 'ai_grade' && <div className="grade-panel">
+          {gradeMessage
+            ? <div className="detection-detail"><b>KI-Abstufung nicht verfügbar</b><span>{gradeMessage}</span></div>
+            : gradePrediction?.grade_mask
+              ? <GradeLegend ontology={gradePrediction.grade_ontology} mask={gradePrediction.grade_mask} grading={gradePrediction.grading}/>
+              : <div className="detection-detail"><b>{gradeLoading ? 'Abstufung wird berechnet …' : 'Noch keine Abstufung'}</b><span>Die Abstufung wird für den angehaltenen Frame aus dem Wegmodell dieser Mission berechnet.</span></div>}
+          {gradePrediction && <small>Frame {gradeFrameIndex + 1} · Modell {gradePrediction.model_run_id} · {percent(gradePrediction.path_fraction)} des Bildes als Weg erkannt</small>}
+          {playing && <small className="grade-note">Während der Wiedergabe wird die Abstufung nicht nachgeladen. Pausiere für den aktuellen Frame.</small>}
+        </div>}
 
         {mode === 'labels' && <div className="manual-label-viewer">
           <h2>Eigene Ground Truth</h2>

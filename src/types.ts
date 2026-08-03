@@ -47,7 +47,7 @@ export type SegmentationDetection = {
 }
 
 export type TraversabilityClass = 'likely_traversable' | 'limited' | 'not_traversable' | 'unknown'
-export type OverlayMode = 'original' | 'vegetation' | 'ground' | 'traversability' | 'annotation' | 'labels'
+export type OverlayMode = 'original' | 'vegetation' | 'ground' | 'traversability' | 'annotation' | 'labels' | 'ai_grade'
 export type NormalizedPoint = [number, number]
 export type TerrainMask = {width: number; height: number; rle: number[]}
 export type GroundTruthValue = 0 | 1 | 2 | 3
@@ -94,7 +94,20 @@ export type PathModelResult = {
   runtime_seconds: number
   limitations: string[]
 }
-export type PathPrediction = {schema_version: string; model_run_id: string; video_id: string; frame_index: number; timestamp_ms: number; mask: TerrainMask; path_fraction: number; mean_separation: number; confidence_note: string; source: string; evaluation?: {annotation_status: GroundTruthStatus; metrics: PathModelMetrics; comparison_mask: TerrainMask; legend: Record<string, string>; refinement_count: number}}
+/** Abstufungsklassen der KI-Wegmaske; Werte 0-5 wie GRADE_ONTOLOGY im Backend. */
+export type GradeKey = 'unrated' | 'safe' | 'good' | 'marginal' | 'risky' | 'problem'
+export type GradeOntology = Record<GradeKey | string, {value: number; label: string; color: string}>
+export type Grading = {
+  margin: string
+  threshold: number
+  bands: {safe_min_margin: number; good_min_margin: number; risky_min_margin: number}
+  problem_min_area_fraction: number
+  problem_neighbourhood_px: number
+  problem_clip_px: number
+  smoothing: string
+  note: string
+}
+export type PathPrediction = {schema_version: string; model_run_id: string; video_id: string; frame_index: number; timestamp_ms: number; mask: TerrainMask; grade_mask?: TerrainMask; grade_ontology?: GradeOntology; grading?: Grading; path_fraction: number; mean_separation: number; confidence_note: string; source: string; evaluation?: {annotation_status: GroundTruthStatus; metrics: PathModelMetrics; comparison_mask: TerrainMask; legend: Record<string, string>; refinement_count: number}}
 export type PathTrainingJob = {job_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'; profile: 'quick' | 'overnight'; duration_hours: number; pid: number; started_at: string; finished_at: string | null; candidates_completed: number; maximum_candidates: number; initial_run_id?: string | null; best_run_id: string | null; best_validation_score: number | null; message: string; last_candidate_run_id?: string; last_configuration?: Record<string, number>}
 export type GlobalPathModelResult = {
   schema_version: string; scope: 'global_cross_mission'; run_id: string; created_at: string
@@ -110,7 +123,8 @@ export type GlobalModelDashboardData = {
   model: GlobalPathModelResult | null
 }
 export type GlobalVideoAnalysisStatus = {job_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'; model_run_id: string; mission_id: string; video_id: string; pid: number; started_at: string; finished_at: string | null; processed_frames: number; total_frames: number; progress: number; elapsed_seconds: number; eta_seconds: number | null; message: string}
-export type GlobalVideoAnalysisFrame = {frame_index: number; timestamp_ms: number; mask: TerrainMask; path_fraction: number; evaluation?: {metrics: PathModelMetrics; comparison_mask: TerrainMask; refinement_count: number}}
+/** grade_mask ist optional: Analysen aus der Zeit vor Phase 3 enthalten nur die Binärmaske. */
+export type GlobalVideoAnalysisFrame = {frame_index: number; timestamp_ms: number; mask: TerrainMask; grade_mask?: TerrainMask; path_fraction: number; evaluation?: {metrics: PathModelMetrics; comparison_mask: TerrainMask; refinement_count: number}}
 export type GlobalVideoAnalysisResult = {schema_version: string; model_run_id: string; mission_id: string; video_id: string; fps: number; total_frames: number; width: number; height: number; analyzed_frames: number; runtime_seconds: number; frames: GlobalVideoAnalysisFrame[]}
 export type TerrainRegion = {
   region_id: string
