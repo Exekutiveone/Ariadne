@@ -11,6 +11,8 @@ from backend.app.path_model import (
     _fit_kernel_classifier,
     _frame_split,
     _predict_scores,
+    _random_projection,
+    _standardize,
 )
 
 
@@ -108,6 +110,45 @@ def test_rle_survives_an_encode_decode_round_trip():
     record = {"width": 3, "height": 2, "rle": _encode_binary_rle(mask)}
 
     assert np.array_equal(_decode_rle(record), mask)
+
+
+def test_vectorized_rle_matches_naive_reference_and_handles_edges():
+    def naive(values):
+        encoded = []
+        current, length = int(values[0]), 1
+        for value in values[1:]:
+            value = int(value)
+            if value == current:
+                length += 1
+            else:
+                encoded.extend([current, length])
+                current, length = value, 1
+        encoded.extend([current, length])
+        return encoded
+
+    mask = np.random.default_rng(6).integers(0, 6, (37, 23)).astype(np.uint8)
+
+    encoded = _encode_binary_rle(mask)
+
+    assert encoded == naive(mask.reshape(-1))
+    assert all(isinstance(entry, int) for entry in encoded)
+    assert _encode_binary_rle(np.empty((0,), np.uint8)) == []
+    assert _encode_binary_rle(np.ones((4, 4), np.uint8)) == [1, 16]
+
+
+def test_fused_score_path_matches_reference_formula():
+    rng = np.random.default_rng(8)
+    samples = rng.normal(0, 1, (300, 5)).astype(np.float32)
+    labels = (samples[:, 2] > 0).astype(np.uint8)
+    model = _fit_kernel_classifier(samples, labels, 32, 0.05, seed=1)
+
+    normalized = _standardize(samples, model["mean"], model["scale"])
+    reference = (
+        _random_projection(normalized, model["projection"], model["phase"]) @ model["weights"][:-1]
+        + model["weights"][-1]
+    )
+
+    assert np.allclose(_predict_scores(samples, model), reference, atol=1e-4)
 
 
 def test_rle_with_a_truncated_run_is_rejected():

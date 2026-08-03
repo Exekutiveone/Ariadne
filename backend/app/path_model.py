@@ -3,7 +3,9 @@ import math
 import os
 import shutil
 import tempfile
+import threading
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -128,6 +130,22 @@ def _apply_refinements(mask: np.ndarray, mission_dir: Path, video_id: str, frame
     return refined
 
 
+# Die fuenf reinen Positionskanaele haengen nur von der Rastergroesse ab und
+# werden pro Shape einmal berechnet. Werte sind identisch zur Direktberechnung;
+# es treten nur wenige Shapes auf (MODEL_WIDTH x videoabhaengige Hoehe).
+_POSITION_CACHE: dict = {}
+
+
+def _position_channels(height: int, width: int):
+    cached = _POSITION_CACHE.get((height, width))
+    if cached is None:
+        x = np.linspace(0, 1, width, dtype=np.float32)[None, :].repeat(height, axis=0)
+        y = np.linspace(0, 1, height, dtype=np.float32)[:, None].repeat(width, axis=1)
+        cached = (x, y, x**2, y**2, np.abs(x - 0.5))
+        _POSITION_CACHE[(height, width)] = cached
+    return cached
+
+
 def _features(image: np.ndarray):
     pixels = image.astype(np.float32) / 255.0
     blue, green, red = cv2.split(pixels)
@@ -144,8 +162,7 @@ def _features(image: np.ndarray):
     local_square = cv2.blur(gray**2, (9, 9))
     local_std = np.sqrt(np.maximum(0, local_square - local_mean**2))
     height, width = gray.shape
-    x = np.linspace(0, 1, width, dtype=np.float32)[None, :].repeat(height, axis=0)
-    y = np.linspace(0, 1, height, dtype=np.float32)[:, None].repeat(width, axis=1)
+    x, y, x_squared, y_squared, x_center_distance = _position_channels(height, width)
     excess_green = np.clip(2 * green - red - blue, -1, 1)
     channels = [
         blue,
@@ -164,9 +181,9 @@ def _features(image: np.ndarray):
         local_std,
         x,
         y,
-        x**2,
-        y**2,
-        np.abs(x - 0.5),
+        x_squared,
+        y_squared,
+        x_center_distance,
         green * y,
         saturation * y,
         value * y,
@@ -228,12 +245,25 @@ def _fit_kernel_classifier(samples, labels, random_features: int, ridge_lambda: 
 
 
 def _predict_scores(features, model, chunk_size: int = 120_000):
+    # Mathematisch identisch zu standardize -> projizieren -> cos -> gewichten,
+    # aber Standardisierung und Kosinus-Amplitude sind in Projektionsmatrix und
+    # Gewichte gefaltet: ((x - m) / s) @ P == x @ (P / s) - (m / s) @ P. Das
+    # spart die grossen Zwischenarrays der Normalisierung und Skalierung; cos
+    # laeuft in-place. Training (_fit_kernel_classifier) nutzt weiter den
+    # Referenzweg, Abweichungen liegen im float32-Rundungsbereich.
+    inverse_scale = (1.0 / model["scale"]).astype(np.float32)
+    projection = model["projection"] * inverse_scale[:, None]
+    offset = (model["phase"] - (model["mean"] * inverse_scale) @ model["projection"]).astype(np.float32)
+    amplitude = np.float32(math.sqrt(2.0 / model["projection"].shape[1]))
+    cosine_weights = amplitude * model["weights"][:-1]
+    bias = model["weights"][-1]
     output = np.empty(len(features), np.float32)
     for start in range(0, len(features), chunk_size):
         stop = min(len(features), start + chunk_size)
-        normalized = _standardize(features[start:stop], model["mean"], model["scale"])
-        hidden = _random_projection(normalized, model["projection"], model["phase"])
-        output[start:stop] = hidden @ model["weights"][:-1] + model["weights"][-1]
+        hidden = features[start:stop] @ projection
+        hidden += offset
+        np.cos(hidden, out=hidden)
+        output[start:stop] = hidden @ cosine_weights + bias
     return output
 
 
@@ -534,21 +564,18 @@ def select_path_model_run(mission_dir: Path, run_id: str):
 
 
 def _encode_binary_rle(mask: np.ndarray):
+    # Vektorisiert (Laufgrenzen ueber np.diff statt Python-Schleife ueber jeden
+    # Pixel); Ausgabeformat unveraendert: flache Liste aus (Wert, Lauflaenge).
     values = mask.reshape(-1).astype(np.uint8)
     if not len(values):
         return []
-    encoded = []
-    current = int(values[0])
-    length = 1
-    for value in values[1:]:
-        value = int(value)
-        if value == current:
-            length += 1
-        else:
-            encoded.extend([current, length])
-            current, length = value, 1
-    encoded.extend([current, length])
-    return encoded
+    boundaries = np.flatnonzero(values[1:] != values[:-1])
+    starts = np.concatenate([[0], boundaries + 1])
+    lengths = np.diff(np.append(starts, len(values)))
+    encoded = np.empty(2 * len(starts), dtype=np.int64)
+    encoded[0::2] = values[starts]
+    encoded[1::2] = lengths
+    return encoded.tolist()
 
 
 def _comparison_mask(truth: np.ndarray, prediction: np.ndarray):
@@ -559,29 +586,102 @@ def _comparison_mask(truth: np.ndarray, prediction: np.ndarray):
     return comparison
 
 
+# Wiederverwendung teurer Ressourcen fuer die interaktiven Einzelframe-Endpunkte.
+# Beide Caches sind klein und threadsicher; FastAPI bedient synchrone Endpunkte
+# aus einem Threadpool. Modelle werden ueber die mtime von model.npz invalidiert
+# (jeder Trainingslauf schreibt ein neues Run-Verzeichnis, der Schluessel aendert
+# sich also ohnehin). Verdraengte VideoCapture-Handles werden nicht hart
+# geschlossen, weil ein anderer Thread sie noch nutzen kann; der letzte Nutzer
+# gibt sie ueber den Destruktor frei, sobald die Referenz faellt.
+_CACHE_LOCK = threading.Lock()
+_MODEL_CACHE: OrderedDict = OrderedDict()
+_MODEL_CACHE_SIZE = 4
+_CAPTURE_CACHE: OrderedDict = OrderedDict()
+_CAPTURE_CACHE_SIZE = 4
+# Bis zu dieser Distanz wird vorwaerts weitergelesen statt gesprungen. Ein
+# Seek in Long-GOP-Videos springt zum letzten Keyframe zurueck und dekodiert
+# von dort (gemessen ~150 ms pro Frame-Zugriff); sequenzielles Weiterlesen
+# kostet nur ~8 ms pro Frame und ist frame-exakt.
+_SEQUENTIAL_READ_LIMIT = 5
+
+
+def _load_model_bundle(model_dir: Path):
+    """Laedt model.npz und result.json eines Laufs mit mtime-invalidiertem Cache."""
+    npz_path = model_dir / "model.npz"
+    key = str(npz_path)
+    stamp = npz_path.stat().st_mtime_ns
+    with _CACHE_LOCK:
+        cached = _MODEL_CACHE.get(key)
+        if cached is not None and cached["stamp"] == stamp:
+            _MODEL_CACHE.move_to_end(key)
+            return cached["model"], cached["threshold"], cached["result"]
+    with np.load(npz_path) as stored:
+        model = {name: stored[name] for name in ("mean", "scale", "projection", "phase", "weights")}
+        threshold = float(stored["threshold"][0])
+    result = json.loads((model_dir / "result.json").read_text(encoding="utf-8"))
+    with _CACHE_LOCK:
+        _MODEL_CACHE[key] = {"stamp": stamp, "model": model, "threshold": threshold, "result": result}
+        while len(_MODEL_CACHE) > _MODEL_CACHE_SIZE:
+            _MODEL_CACHE.popitem(last=False)
+    return model, threshold, result
+
+
+def _cached_capture_entry(source: Path):
+    key = str(source)
+    with _CACHE_LOCK:
+        entry = _CAPTURE_CACHE.get(key)
+        if entry is not None:
+            _CAPTURE_CACHE.move_to_end(key)
+            return entry
+        entry = {"capture": cv2.VideoCapture(key), "lock": threading.Lock()}
+        _CAPTURE_CACHE[key] = entry
+        while len(_CAPTURE_CACHE) > _CAPTURE_CACHE_SIZE:
+            _CAPTURE_CACHE.popitem(last=False)
+        return entry
+
+
+def _read_original_frame(mission_dir: Path, video_id: str, frame_index: int):
+    """Liest einen exakten Originalframe ueber ein gecachtes VideoCapture-Handle."""
+    source = video_path(mission_dir, video_id)
+    entry = _cached_capture_entry(source)
+    with entry["lock"]:
+        capture = entry["capture"]
+        for _attempt in range(2):
+            if not capture.isOpened():
+                capture.release()
+                entry["capture"] = capture = cv2.VideoCapture(str(source))
+            total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = float(capture.get(cv2.CAP_PROP_FPS))
+            source_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            source_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if frame_index < 0 or frame_index >= total_frames:
+                raise LookupError("Videoframe nicht gefunden")
+            position = int(capture.get(cv2.CAP_PROP_POS_FRAMES))
+            step = frame_index - position
+            if 0 <= step <= _SEQUENTIAL_READ_LIMIT:
+                ok, image = False, None
+                for _ in range(step + 1):
+                    ok, image = capture.read()
+                    if not ok:
+                        break
+            else:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                ok, image = capture.read()
+            if ok:
+                return image, fps, source_width, source_height
+            # Veraltetes Handle (z. B. nach Dateiwechsel): einmal neu oeffnen.
+            capture.release()
+            entry["capture"] = capture = cv2.VideoCapture(str(source))
+        raise LookupError("Videoframe konnte nicht dekodiert werden")
+
+
 def predict_path_frame(mission: MissionRecord, mission_dir: Path, video_id: str, frame_index: int):
     video = next((item for item in mission.videos if item.id == video_id), None)
     if not video:
         raise LookupError("Video nicht gefunden")
     model_dir = current_path_model_dir(mission_dir)
-    result = json.loads((model_dir / "result.json").read_text(encoding="utf-8"))
-    with np.load(model_dir / "model.npz") as stored:
-        model = {key: stored[key] for key in ("mean", "scale", "projection", "phase", "weights")}
-        threshold = float(stored["threshold"][0])
-    capture = cv2.VideoCapture(str(video_path(mission_dir, video_id)))
-    try:
-        total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = float(capture.get(cv2.CAP_PROP_FPS))
-        source_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        source_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        if frame_index < 0 or frame_index >= total_frames:
-            raise LookupError("Videoframe nicht gefunden")
-        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-        ok, image = capture.read()
-    finally:
-        capture.release()
-    if not ok:
-        raise LookupError("Videoframe konnte nicht dekodiert werden")
+    model, threshold, result = _load_model_bundle(model_dir)
+    image, fps, source_width, source_height = _read_original_frame(mission_dir, video_id, frame_index)
     width = int(result["model"]["input_width"])
     height = max(48, round(width * source_height / max(1, source_width)))
     resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)

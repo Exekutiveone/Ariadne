@@ -31,15 +31,16 @@ from .path_model import (
     _frame_split,
     _grade_prediction,
     _grading_summary,
+    _load_model_bundle,
     _load_refinements,
     _polygon_mask,
     _predict_scores,
     _read_frames,
+    _read_original_frame,
     _write_evidence,
     confusion_counts,
     symmetric_metrics,
 )
-from .processor import video_path
 
 
 def _global_root(missions_root: Path):
@@ -220,25 +221,9 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
     if not video:
         raise LookupError("Video nicht gefunden")
     model_dir = current_global_model_dir(store.root)
-    result = json.loads((model_dir / "result.json").read_text(encoding="utf-8"))
-    with np.load(model_dir / "model.npz") as stored:
-        model = {key: stored[key] for key in ("mean", "scale", "projection", "phase", "weights")}
-        threshold = float(stored["threshold"][0])
+    model, threshold, result = _load_model_bundle(model_dir)
     mission_dir = store.root / mission_id
-    capture = cv2.VideoCapture(str(video_path(mission_dir, video_id)))
-    try:
-        total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = float(capture.get(cv2.CAP_PROP_FPS))
-        source_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        source_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        if frame_index < 0 or frame_index >= total_frames:
-            raise LookupError("Videoframe nicht gefunden")
-        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-        ok, image = capture.read()
-    finally:
-        capture.release()
-    if not ok:
-        raise LookupError("Videoframe konnte nicht dekodiert werden")
+    image, fps, source_width, source_height = _read_original_frame(mission_dir, video_id, frame_index)
     width = int(result["model"]["input_width"])
     height = max(48, round(width * source_height / max(1, source_width)))
     resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)

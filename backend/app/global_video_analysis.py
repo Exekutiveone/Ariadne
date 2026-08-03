@@ -7,6 +7,8 @@ import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+from queue import Empty, Full, Queue
+from threading import Event, Thread
 from uuid import uuid4
 
 import cv2
@@ -272,12 +274,46 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
         "message": f"Analyse ab Frame {start_frame + 1} gestartet" if start_frame else "Videoanalyse gestartet",
     }
     _write_status(status_path, state)
+    # Decodieren und Inferenz ueberlappen: ein Prefetch-Thread liest Frames,
+    # waehrend der Hauptthread rechnet. Das Videodecoding (~7 ms/Frame bei 1080p)
+    # verschwindet dadurch fast vollstaendig aus der Gesamtzeit. Nur der
+    # Hauptthread beruehrt capture nach dem Threadstart nicht mehr; released
+    # wird erst nach dem Join im finally.
+    stop_decoding = Event()
+    frame_queue: Queue = Queue(maxsize=8)
+
+    def _decode_frames():
+        try:
+            for decode_index in range(start_frame, total):
+                if stop_decoding.is_set():
+                    return
+                ok, decoded = capture.read()
+                if not ok:
+                    return
+                while not stop_decoding.is_set():
+                    try:
+                        frame_queue.put((decode_index, decoded), timeout=0.2)
+                        break
+                    except Full:
+                        continue
+        finally:
+            # Endsignal; bricht ab, wenn der Konsument bereits aufgegeben hat.
+            while not stop_decoding.is_set():
+                try:
+                    frame_queue.put(None, timeout=0.2)
+                    return
+                except Full:
+                    continue
+
+    decoder = Thread(target=_decode_frames, daemon=True)
+    decoder.start()
     try:
         chunk_start = start_frame
-        for frame_index in range(start_frame, total):
-            ok, image = capture.read()
-            if not ok:
+        while True:
+            item = frame_queue.get()
+            if item is None:
                 break
+            frame_index, image = item
             resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
             prediction = _clean_prediction(_predict_scores(_features(resized), model), (height, width), threshold)
             frame = {
@@ -364,6 +400,12 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
         _write_json(portable / "result.json", result)
         _write_json(portable / "status.json", {**state, "pid": 0, "portable_cache": True})
     finally:
+        stop_decoding.set()
+        while decoder.is_alive():
+            try:
+                frame_queue.get_nowait()
+            except Empty:
+                decoder.join(timeout=0.1)
         capture.release()
 
 
