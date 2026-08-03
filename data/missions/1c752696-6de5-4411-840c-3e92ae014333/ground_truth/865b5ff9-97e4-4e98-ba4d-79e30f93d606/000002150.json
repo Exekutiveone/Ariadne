@@ -1,0 +1,43 @@
+{
+  "schema_version": "2.0",
+  "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+  "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+  "frame_index": 2150,
+  "timestamp_ms": 71695,
+  "source_frame_hash": "47769f94d0fa7069fb783ee4e028dd709289520c4595982331147a02cddd16f1",
+  "polygons": [],
+  "status": "skipped",
+  "annotator": "Simon",
+  "notes": "",
+  "revision": 2,
+  "updated_at": "2026-08-02T23:20:16.821971+00:00",
+  "statistics": {
+    "polygon_count": 0,
+    "point_count": 0,
+    "classes": {
+      "traversable": 0
+    }
+  },
+  "ontology": {
+    "unlabelled": {
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "traversable": {
+      "value": 1,
+      "label": "Befahrbar",
+      "color": "#55d96f"
+    },
+    "not_traversable": {
+      "value": 2,
+      "label": "Nicht befahrbar",
+      "color": "#e05b52"
+    },
+    "unknown": {
+      "value": 3,
+      "label": "Nicht bewertbar",
+      "color": "#737c78"
+    }
+  }
+}

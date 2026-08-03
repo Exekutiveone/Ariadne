@@ -1,0 +1,49 @@
+{
+  "name": "Misson  2",
+  "start": {
+    "lat": 48.72379623448678,
+    "lng": 9.290151514251354
+  },
+  "end": {
+    "lat": 48.72379623448678,
+    "lng": 9.290151514251354
+  },
+  "route": [
+    {
+      "lat": 48.72379623448678,
+      "lng": 9.290151514251354
+    },
+    {
+      "lat": 48.72379623448678,
+      "lng": 9.290151514251354
+    }
+  ],
+  "movement_start": null,
+  "movement_end": null,
+  "pauses": [],
+  "notes": "",
+  "id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+  "status": "READY_FOR_GOAL_2",
+  "created_at": "2026-08-03T14:28:19.992101Z",
+  "videos": [
+    {
+      "direction": "A_TO_B",
+      "orientation": "PORTRAIT",
+      "id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+      "original_name": "IMG_9742.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 1323425554,
+      "sha256": "1fba40400ebe7750df5de6bd58b9c35bc0565612188735e529f68a5a90efc94a"
+    },
+    {
+      "direction": "B_TO_A",
+      "orientation": "PORTRAIT",
+      "id": "e951a589-b376-409c-a072-be2d7f110bd7",
+      "original_name": "IMG_9743.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 1353369663,
+      "sha256": "8472f727acd469ec37df5cd4789ba9594ad8e38b11f0844139bb33309e43730c"
+    }
+  ],
+  "schema_version": "1.0"
+}

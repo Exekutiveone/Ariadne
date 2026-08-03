@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data", "node_modules", "dist"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: Importsortierung.
+# E501 uebernimmt der Formatter, nicht der Linter.
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+# Aufruf immer als `python -m pytest`, damit das Repo-Wurzelverzeichnis auf
+# sys.path liegt und `from backend.app...` in den Tests aufloest.

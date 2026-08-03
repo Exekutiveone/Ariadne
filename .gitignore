@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.vite/
+__pycache__/
+.pytest_cache/
+.runtime/
+.claude/settings.local.json
+*.pyc
+*.tsbuildinfo
+# Handgemachte, nicht reproduzierbare Daten werden bewusst versioniert:
+# data/missions/*/ground_truth und data/missions/*/path_refinements.
+# Alles Folgende ist entweder Duplikat oder aus diesen Daten neu berechenbar.
+
+# Importordner: enthalten nur Duplikate der persistenten Missionsvideos.
+data/Mission1/
+data/Mission 2/
+
+# Analyse-Artefakte: werden bei jedem Lauf vollstaendig neu geschrieben
+# (aktuell 1.498 Dateien, 470 MB, darunter 333 MB JSON und 960 Evidenz-JPGs).
+# Versioniert wuerde jeder Lauf eine komplette Kopie in der Historie ablegen.
+data/**/derived/
+data/runtime_cache/
+data/global_models/*/video_analyses/
+
+# Originalvideos: 6 Dateien, 3,1 GB. LFS ist in .gitattributes vorbereitet,
+# sprengt aber GitHubs Gratiskontingent (1 GB Storage, 1 GB Traffic/Monat).
+# Bewusst ausgeklammert, bis ueber LFS-Datenpaket oder eigenes Remote
+# entschieden ist. Die Dateien liegen zusaetzlich in den Importordnern.
+data/missions/*/videos/

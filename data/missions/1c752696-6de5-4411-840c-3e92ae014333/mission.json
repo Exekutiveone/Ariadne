@@ -1,0 +1,67 @@
+{
+  "name": "Mission 1",
+  "start": {
+    "lat": 48.73023425632304,
+    "lng": 9.281018887819329
+  },
+  "end": {
+    "lat": 48.73034436371159,
+    "lng": 9.279670968974454
+  },
+  "route": [
+    {
+      "lat": 48.73023425632304,
+      "lng": 9.281018887819329
+    },
+    {
+      "lat": 48.73034436371159,
+      "lng": 9.279670968974454
+    }
+  ],
+  "movement_start": null,
+  "movement_end": null,
+  "pauses": [],
+  "notes": "Vier manuelle Begehungsvideos aus data/Mission1.",
+  "id": "1c752696-6de5-4411-840c-3e92ae014333",
+  "status": "READY_FOR_GOAL_2",
+  "created_at": "2026-08-02T17:31:01.923915Z",
+  "videos": [
+    {
+      "direction": "B_TO_A",
+      "orientation": "PORTRAIT",
+      "id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+      "original_name": "Hoch-Format_End -_ Start.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 138822314,
+      "sha256": "50a4dc2d18ec14c0de6cc23fc82bb3a029a53145be5cfeaf1073e9f40e1935c5"
+    },
+    {
+      "direction": "A_TO_B",
+      "orientation": "PORTRAIT",
+      "id": "8eba07e3-82e6-4f78-add0-407092cef3b5",
+      "original_name": "Hoch-Format_Start -_ End.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 136479091,
+      "sha256": "6394b32e401d75a11af3876bb031f6cff6c5f54827a6b48236785681e1b04ece"
+    },
+    {
+      "direction": "B_TO_A",
+      "orientation": "LANDSCAPE",
+      "id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+      "original_name": "Quer-Format_End -_ Start.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 151726621,
+      "sha256": "ec08d6740ca9b2820be390ba986dcea7fe999d74820eb0401ffe8ba97f908ca8"
+    },
+    {
+      "direction": "A_TO_B",
+      "orientation": "LANDSCAPE",
+      "id": "9e24cfa3-3e26-4b9f-8c31-4592227cad42",
+      "original_name": "Quer-Format_Start -_ End  .MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 154422222,
+      "sha256": "b0c2dd47f9680f778b043ed0b631bd002014b208ba67cb8e940a40f6e3735bcd"
+    }
+  ],
+  "schema_version": "1.0"
+}

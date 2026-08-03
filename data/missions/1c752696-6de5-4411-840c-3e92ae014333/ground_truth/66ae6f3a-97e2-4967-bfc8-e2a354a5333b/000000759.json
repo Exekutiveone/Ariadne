@@ -1,0 +1,78 @@
+{
+  "schema_version": "2.0",
+  "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+  "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+  "frame_index": 759,
+  "timestamp_ms": 25310,
+  "source_frame_hash": "4052929c4e60c005e92cce140dedb187fb66b743fd35772248a0f23ab1ccdca5",
+  "polygons": [
+    {
+      "id": "path-1",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.42811691104971406,
+          0.41441208584543027
+        ],
+        [
+          0.5304851852299579,
+          0.4156638716687266
+        ],
+        [
+          0.9866916245114795,
+          0.8663067680554098
+        ],
+        [
+          1.0,
+          0.9864782070918587
+        ],
+        [
+          0.5505137606130491,
+          1.0
+        ],
+        [
+          0.005291430740011146,
+          0.9877299929151551
+        ],
+        [
+          0.007516828004799056,
+          0.7110853259666634
+        ]
+      ]
+    }
+  ],
+  "status": "confirmed",
+  "annotator": "Simon",
+  "notes": "",
+  "revision": 1,
+  "updated_at": "2026-08-02T21:43:08.525951+00:00",
+  "statistics": {
+    "polygon_count": 1,
+    "point_count": 7,
+    "classes": {
+      "traversable": 1
+    }
+  },
+  "ontology": {
+    "unlabelled": {
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "traversable": {
+      "value": 1,
+      "label": "Befahrbar",
+      "color": "#55d96f"
+    },
+    "not_traversable": {
+      "value": 2,
+      "label": "Nicht befahrbar",
+      "color": "#e05b52"
+    },
+    "unknown": {
+      "value": 3,
+      "label": "Nicht bewertbar",
+      "color": "#737c78"
+    }
+  }
+}
