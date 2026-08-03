@@ -21,6 +21,9 @@ werden dem Nutzer auf Deutsch angezeigt. Bezeichner im Code sind Englisch.
 - `backend/app/terrain_model.py` — videobasierte Terrainklassifizierung
   (`ariadne-cpu-terrain-rff`): ein Merkmalsvektor je Frame, Multiklassen-Ridge
   ueber Random-Feature-Projektionen, Laeufe unter `data/global_models/terrain_model`.
+- `backend/app/corridor.py` — Fluchtpunkt-Geometrie und Korridor-Bewertung im
+  Bildraum. Rein deterministisch, kein ML und keine Abhaengigkeit zu einem Modell;
+  die Verdrahtung mit der Wegmaske steht in `global_path_model.py`.
 - `backend/app/annotations.py`, `labeling.py` — manuelle Ground-Truth-Polygone.
 - `src/` — React-Frontend. `AnalysisView.tsx` (Player mit Overlays) und
   `GroundTruthLabeler.tsx` (Polygonwerkzeug) sind die beiden grossen Komponenten.
@@ -92,5 +95,11 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   Deskriptor, muss `TERRAIN_MODEL_SCHEMA_VERSION` steigen.
 - Terrainlaeufe sind unveraenderlich: jeder Trainings- und jeder Videovorhersagelauf
   bekommt ein eigenes Verzeichnis, nur `current.json` zeigt um.
+- Die Korridorpruefung bewertet **nur die Breite**. Wie weit voraus ein Korridor
+  frei bleibt, wird bewusst nicht gemessen und darf auch nicht als Distanz
+  berichtet werden. Ein Korridor wird nie still "frei": Rauschen und Zeilen
+  ausserhalb des Bildes fuehren zu "unsicher", nicht zu "frei".
+- `corridor.py` kennt weder Modell noch Mission und bekommt nur Masken. Diese
+  Trennung erhalten — sie macht die Geometrie ohne Modell testbar.
 - Die Ausgabe ist eine KI-gestuetzte Einschaetzung und ausdruecklich **keine
   sicherheitsrelevante Fahrfreigabe**. Diesen Vorbehalt in Berichten und UI beibehalten.

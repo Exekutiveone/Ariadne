@@ -122,6 +122,24 @@ export type GlobalModelDashboardData = {
   dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}[]; totals: {missions: number; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}}
   model: GlobalPathModelResult | null
 }
+/* Korridor-Bewertung im Bildraum: deterministische Geometrie auf der Maske, kein ML. */
+export type CorridorStatus = 'free' | 'blocked' | 'uncertain'
+export type CorridorResult = {corridor: 'mitte' | 'rechts' | 'links'; label: string; meaning: string; status: CorridorStatus; status_label: string; reason: string; rows: {evaluated: number; free: number; uncertain: number; blocked: number}; bottom_center_x: number}
+export type CorridorCheck = {
+  schema_version: string; kind: string; mask_size: {width: number; height: number}
+  decomposition: {
+    vanishing_point: {x: number; y: number; source: string; rows_used: number; residual_px: number | null}
+    relevant_triangle: number[][]
+    irrelevant_zone: {kind: string; first_evaluated_row: number; rows_skipped: number; image_fraction_skipped: number; reason: string}
+    evaluated_rows: number
+  }
+  strip: {vehicle_width_m: number; clearance_m: number; required_width_m: number; ground_width_at_bottom_m: number; required_width_px_at_bottom: number; scaling: string; search_band_factor: number}
+  corridors: CorridorResult[]
+  graded_input: boolean
+  limitations: string[]
+  model_run_id: string; mission_id: string; video_id: string; frame_index: number; timestamp_ms: number; path_fraction: number; source: string
+}
+
 /* Videobasierte Terrainklassifizierung. Die Klasse eines Frames ist immer die
    aktuell am Video gesetzte Kategorie; Frames tragen kein eigenes Label. */
 export type TerrainClassMetrics = {terrain_category: string; support: number; precision: number; recall: number; f1: number}

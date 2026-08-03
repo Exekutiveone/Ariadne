@@ -3,6 +3,7 @@ import type {PointerEvent as ReactPointerEvent} from 'react'
 import {deleteCriticalFlag, getGlobalModelDashboard, getGlobalVideoAnalysisResult, getGlobalVideoAnalysisStatus, getLabelingVideos, listCriticalFlags, predictGlobalPathFrame, saveCriticalFlag, startGlobalVideoAnalysis, trainGlobalPathModel} from './api'
 import GradeLegend from './GradeLegend'
 import {AI_BINARY_PALETTE, COMPARISON_PALETTE, decodeRleValues, encodeRleValues, paintMaskCanvas, paletteFromGradeOntology} from './masks'
+import CorridorReadout from './CorridorReadout'
 import TerrainModelPanel from './TerrainModelPanel'
 import {terrainCategoryLabel} from './terrainCategories'
 import type {GlobalModelDashboardData, GlobalVideoAnalysisResult, GlobalVideoAnalysisStatus, GradeOntology, Grading, LabelingVideo, PathPrediction, TerrainMask} from './types'
@@ -386,6 +387,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
               <label><input type="checkbox" checked={showAiMask} disabled={!analysisResult || layer.graded} onChange={event => setShowAiMask(event.target.checked)}/><span>KI-Maske anzeigen</span></label>
               <label><input type="checkbox" checked={showLabelMask} disabled={!analysisResult || layer.graded} onChange={event => setShowLabelMask(event.target.checked)}/><span>Label-Maske anzeigen</span></label>
             </div>
+            <CorridorReadout missionId={selectedMissionId} videoId={activeVideo?.video_id ?? ''} frameIndex={frameIndex} enabled={Boolean(activeVideo) && !playing}/>
             <div className="global-feedback-panel">
               <div className="section-head compact"><h3>Fehler melden</h3><p>Frame markieren, Schweregrad setzen und gemalte Fehlerfläche speichern.</p></div>
               <label><input type="checkbox" checked={showFeedbackBrush} onChange={event => setShowFeedbackBrush(event.target.checked)}/><span>Fehler-Pinsel aktivieren</span></label>

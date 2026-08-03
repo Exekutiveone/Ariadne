@@ -49,6 +49,24 @@ vi.mock('./api', () => ({
   }),
   trainTerrainModel: vi.fn(),
   predictTerrainVideo: vi.fn(),
+  getCorridorCheck: async () => ({
+    schema_version: '1.0', kind: 'image_space_corridor_check', mask_size: {width: 160, height: 120},
+    decomposition: {
+      vanishing_point: {x: 80, y: 40, source: 'path_edge_line_intersection', rows_used: 79, residual_px: .4},
+      relevant_triangle: [[0, 119], [159, 119], [80, 40]],
+      irrelevant_zone: {kind: 'above_vanishing_point', first_evaluated_row: 42, rows_skipped: 42, image_fraction_skipped: .35, reason: 'Himmel und Ferne oberhalb des Fluchtpunkts werden nicht ausgewertet.'},
+      evaluated_rows: 78,
+    },
+    strip: {vehicle_width_m: 1.2, clearance_m: .1, required_width_m: 1.3, ground_width_at_bottom_m: 4, required_width_px_at_bottom: 52, scaling: 'linear', search_band_factor: 1.5},
+    corridors: [
+      {corridor: 'mitte', label: 'Mitte', meaning: 'Standard bei schmalen Wald- und Feldwegen', status: 'free', status_label: 'frei', reason: 'In allen 78 ausgewerteten Zeilen passt ein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 78, uncertain: 0, blocked: 0}, bottom_center_x: 80},
+      {corridor: 'rechts', label: 'Rechts', meaning: 'Rechtsfahrgebot', status: 'blocked', status_label: 'blockiert', reason: 'In 40 von 78 Zeilen passt kein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 38, uncertain: 0, blocked: 40}, bottom_center_x: 132},
+      {corridor: 'links', label: 'Links', meaning: 'Ausweichoption', status: 'uncertain', status_label: 'unsicher', reason: 'In 12 von 78 Zeilen ist der Streifen nicht sicher frei.', rows: {evaluated: 78, free: 66, uncertain: 12, blocked: 0}, bottom_center_x: 28},
+    ],
+    graded_input: true,
+    limitations: ['Nur Breitenprüfung.', 'Kalibrierung pro Kameraaufbau.', 'Deterministische Geometrie auf einer vorhergesagten Maske — keine sicherheitsrelevante Fahrfreigabe.'],
+    model_run_id: 'global-run-1', mission_id: 'mission-1', video_id: 'video-1', frame_index: 0, timestamp_ms: 0, path_fraction: .42, source: 'deterministic_geometry_on_global_model_mask',
+  }),
 }))
 
 import GlobalModelDashboard from './GlobalModelDashboard'
@@ -58,7 +76,8 @@ test('grades an already analyzed video from the live prediction and says so', as
 
   expect(await screen.findByText('Sicher befahrbar')).toBeInTheDocument()
   expect(screen.getByText('Problemzone / Hindernis')).toBeInTheDocument()
-  expect(screen.getByText(/keine sicherheitsrelevante Fahrfreigabe/)).toBeInTheDocument()
+  // Der Vorbehalt steht sowohl an der Abstufung als auch an der Korridorpruefung.
+  expect(screen.getAllByText(/keine sicherheitsrelevante Fahrfreigabe/).length).toBeGreaterThan(0)
   // Ehrlicher Hinweis, dass die gespeicherte Analyse die Abstufung noch nicht enthaelt.
   expect(screen.getByText(/enthält noch keine Abstufung/)).toBeInTheDocument()
 })
@@ -73,4 +92,17 @@ test('falls back to the precomputed binary mask when grading is switched off', a
   expect(screen.queryByText('Sicher befahrbar')).not.toBeInTheDocument()
   expect(screen.getByRole('checkbox', {name: 'KI-Maske anzeigen'})).toBeEnabled()
   expect(screen.getByText(/vorberechnete globale KI-Wegmaske/)).toBeInTheDocument()
+})
+
+test('reports the three image-space corridors with their status', async () => {
+  render(<GlobalModelDashboard onClose={() => undefined}/>)
+
+  expect(await screen.findByText('BLOCKIERT')).toBeInTheDocument()
+  expect(screen.getByText('Korridore im Bildraum')).toBeInTheDocument()
+  expect(screen.getByText('FREI')).toBeInTheDocument()
+  expect(screen.getByText('BLOCKIERT')).toBeInTheDocument()
+  expect(screen.getByText('UNSICHER')).toBeInTheDocument()
+  // Der Vorfilter aus A.4 wird sichtbar gemacht, nicht stillschweigend angewendet.
+  expect(screen.getByText(/oberhalb des Fluchtpunkts werden nicht ausgewertet/)).toBeInTheDocument()
+  expect(screen.getByText(/aus 79 Wegrandzeilen gefittet/)).toBeInTheDocument()
 })

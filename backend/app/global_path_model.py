@@ -10,6 +10,12 @@ from uuid import uuid4
 import cv2
 import numpy as np
 
+from .corridor import (
+    DEFAULT_CLEARANCE_M,
+    DEFAULT_GROUND_WIDTH_AT_BOTTOM_M,
+    DEFAULT_VEHICLE_WIDTH_M,
+    evaluate_corridors,
+)
 from .critical_flags import load_critical_flag_records
 from .path_model import (
     GRADE_ONTOLOGY,
@@ -25,6 +31,7 @@ from .path_model import (
     _clean_prediction,
     _comparison_mask,
     _confirmed_annotations,
+    _decode_rle,
     _encode_binary_rle,
     _evaluate,
     _features,
@@ -267,3 +274,40 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
         except (OSError, ValueError, KeyError, TypeError):
             pass
     return response
+
+
+def corridor_check_global_frame(
+    store,
+    mission_id: str,
+    video_id: str,
+    frame_index: int,
+    *,
+    vehicle_width_m: float = DEFAULT_VEHICLE_WIDTH_M,
+    clearance_m: float = DEFAULT_CLEARANCE_M,
+    ground_width_at_bottom_m: float = DEFAULT_GROUND_WIDTH_AT_BOTTOM_M,
+):
+    """A.3/A.4 auf der Vorhersage des globalen Wegmodells.
+
+    Die Geometrie in `corridor` kennt weder Modell noch Mission; hier wird nur
+    die vorhergesagte Maske dekodiert und weitergereicht.
+    """
+    prediction = predict_global_path_frame(store, mission_id, video_id, frame_index)
+    mask = _decode_rle(prediction["mask"])
+    grade_mask = _decode_rle(prediction["grade_mask"]) if prediction.get("grade_mask") else None
+    result = evaluate_corridors(
+        mask,
+        grade_mask,
+        vehicle_width_m=vehicle_width_m,
+        clearance_m=clearance_m,
+        ground_width_at_bottom_m=ground_width_at_bottom_m,
+    )
+    return {
+        **result,
+        "model_run_id": prediction["model_run_id"],
+        "mission_id": mission_id,
+        "video_id": video_id,
+        "frame_index": frame_index,
+        "timestamp_ms": prediction["timestamp_ms"],
+        "path_fraction": prediction["path_fraction"],
+        "source": "deterministic_geometry_on_global_model_mask",
+    }

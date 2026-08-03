@@ -3,13 +3,15 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from .annotations import delete_annotation, get_annotation, list_annotations, save_annotation
+from .corridor import DEFAULT_CLEARANCE_M, DEFAULT_GROUND_WIDTH_AT_BOTTOM_M, DEFAULT_VEHICLE_WIDTH_M
 from .critical_flags import delete_critical_flag, list_critical_flags, save_critical_flag
 from .global_path_model import (
+    corridor_check_global_frame,
     current_global_model,
     current_global_model_dir,
     global_dataset_summary,
@@ -131,6 +133,31 @@ def global_video_analyze_result(mission_id: str, video_id: str):
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/corridors/{mission_id}/{video_id}/{frame_index}")
+def corridor_check(
+    mission_id: str,
+    video_id: str,
+    frame_index: int,
+    vehicle_width_m: float = Query(default=DEFAULT_VEHICLE_WIDTH_M, gt=0, le=10),
+    clearance_m: float = Query(default=DEFAULT_CLEARANCE_M, ge=0, le=5),
+    ground_width_at_bottom_m: float = Query(default=DEFAULT_GROUND_WIDTH_AT_BOTTOM_M, gt=0, le=100),
+):
+    try:
+        return corridor_check_global_frame(
+            store,
+            mission_id,
+            video_id,
+            frame_index,
+            vehicle_width_m=vehicle_width_m,
+            clearance_m=clearance_m,
+            ground_width_at_bottom_m=ground_width_at_bottom_m,
+        )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(409, f"Korridorprüfung nicht möglich: {exc}") from exc
 
 
 NO_TERRAIN_MODEL = "Es wurde noch kein Terrainmodell trainiert"
