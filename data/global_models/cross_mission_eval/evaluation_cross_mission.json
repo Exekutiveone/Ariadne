@@ -1,0 +1,304 @@
+{
+  "generated_at": "2026-08-03T19:40:49+00:00",
+  "missions": {
+    "first": {
+      "name": "Mission 1",
+      "id": "1c752696-6de5-4411-840c-3e92ae014333",
+      "confirmed_frames": 152
+    },
+    "second": {
+      "name": "Misson  2",
+      "id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+      "confirmed_frames": 99
+    },
+    "available": [
+      {
+        "name": "Misson 3",
+        "confirmed_frames": 9
+      },
+      {
+        "name": "Misson  2",
+        "confirmed_frames": 99
+      },
+      {
+        "name": "Mission 1",
+        "confirmed_frames": 152
+      }
+    ]
+  },
+  "runs": [
+    {
+      "key": "A",
+      "train_mission": "Mission 1",
+      "eval_mission": "Misson  2",
+      "include_position": true,
+      "feature_count": 22,
+      "threshold": -0.116486,
+      "threshold_selected_on": "held_out_frames_of_training_mission_only",
+      "fit_frames": 123,
+      "threshold_frames": 29,
+      "eval_frames": 99,
+      "metrics": {
+        "tp": 1747803,
+        "tn": 2096642,
+        "fp": 611636,
+        "fn": 42479,
+        "missed_label_fraction": 0.02373,
+        "invented_path_fraction": 0.22584,
+        "symmetric_penalty_points": 12.48,
+        "symmetric_score": 87.52,
+        "iou": 0.72767,
+        "dice": 0.84237,
+        "precision": 0.74077,
+        "recall": 0.97627
+      },
+      "evidence": [
+        {
+          "kind": "worst",
+          "file": "A-0-worst-dcdd9bf1-0015478.jpg",
+          "iou": 0.32769,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 15478
+        },
+        {
+          "kind": "worst",
+          "file": "A-1-worst-dcdd9bf1-0016422.jpg",
+          "iou": 0.40165,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 16422
+        },
+        {
+          "kind": "worst",
+          "file": "A-2-worst-dcdd9bf1-0011514.jpg",
+          "iou": 0.41208,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 11514
+        },
+        {
+          "kind": "best",
+          "file": "A-3-best-dcdd9bf1-0000944.jpg",
+          "iou": 0.93753,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 944
+        },
+        {
+          "kind": "best",
+          "file": "A-4-best-dcdd9bf1-0001133.jpg",
+          "iou": 0.92398,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 1133
+        }
+      ]
+    },
+    {
+      "key": "B",
+      "train_mission": "Misson  2",
+      "eval_mission": "Mission 1",
+      "include_position": true,
+      "feature_count": 22,
+      "threshold": -0.060913,
+      "threshold_selected_on": "held_out_frames_of_training_mission_only",
+      "fit_frames": 80,
+      "threshold_frames": 19,
+      "eval_frames": 152,
+      "metrics": {
+        "tp": 1513696,
+        "tn": 3290227,
+        "fp": 213624,
+        "fn": 430453,
+        "missed_label_fraction": 0.22141,
+        "invented_path_fraction": 0.06097,
+        "symmetric_penalty_points": 14.12,
+        "symmetric_score": 85.88,
+        "iou": 0.70151,
+        "dice": 0.82457,
+        "precision": 0.87633,
+        "recall": 0.77859
+      },
+      "evidence": [
+        {
+          "kind": "worst",
+          "file": "B-0-worst-8eba07e3-0001650.jpg",
+          "iou": 0.01846,
+          "video_id": "8eba07e3-82e6-4f78-add0-407092cef3b5",
+          "frame_index": 1650
+        },
+        {
+          "kind": "worst",
+          "file": "B-1-worst-865b5ff9-0001650.jpg",
+          "iou": 0.05226,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 1650
+        },
+        {
+          "kind": "worst",
+          "file": "B-2-worst-865b5ff9-0001600.jpg",
+          "iou": 0.05527,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 1600
+        },
+        {
+          "kind": "best",
+          "file": "B-3-best-66ae6f3a-0000450.jpg",
+          "iou": 0.93174,
+          "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+          "frame_index": 450
+        },
+        {
+          "kind": "best",
+          "file": "B-4-best-66ae6f3a-0000300.jpg",
+          "iou": 0.91026,
+          "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+          "frame_index": 300
+        }
+      ]
+    },
+    {
+      "key": "C",
+      "train_mission": "Mission 1",
+      "eval_mission": "Misson  2",
+      "include_position": false,
+      "feature_count": 14,
+      "threshold": 0.026463,
+      "threshold_selected_on": "held_out_frames_of_training_mission_only",
+      "fit_frames": 123,
+      "threshold_frames": 29,
+      "eval_frames": 99,
+      "metrics": {
+        "tp": 1486677,
+        "tn": 1932541,
+        "fp": 775737,
+        "fn": 303605,
+        "missed_label_fraction": 0.16959,
+        "invented_path_fraction": 0.28643,
+        "symmetric_penalty_points": 22.8,
+        "symmetric_score": 77.2,
+        "iou": 0.57937,
+        "dice": 0.73367,
+        "precision": 0.65712,
+        "recall": 0.83041
+      },
+      "evidence": [
+        {
+          "kind": "worst",
+          "file": "C-0-worst-dcdd9bf1-0015478.jpg",
+          "iou": 0.20059,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 15478
+        },
+        {
+          "kind": "worst",
+          "file": "C-1-worst-dcdd9bf1-0011514.jpg",
+          "iou": 0.24542,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 11514
+        },
+        {
+          "kind": "worst",
+          "file": "C-2-worst-dcdd9bf1-0010759.jpg",
+          "iou": 0.25383,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 10759
+        },
+        {
+          "kind": "best",
+          "file": "C-3-best-dcdd9bf1-0009815.jpg",
+          "iou": 0.90959,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 9815
+        },
+        {
+          "kind": "best",
+          "file": "C-4-best-dcdd9bf1-0017554.jpg",
+          "iou": 0.90506,
+          "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+          "frame_index": 17554
+        }
+      ]
+    },
+    {
+      "key": "D",
+      "train_mission": "Misson  2",
+      "eval_mission": "Mission 1",
+      "include_position": false,
+      "feature_count": 14,
+      "threshold": -0.084052,
+      "threshold_selected_on": "held_out_frames_of_training_mission_only",
+      "fit_frames": 80,
+      "threshold_frames": 19,
+      "eval_frames": 152,
+      "metrics": {
+        "tp": 1014816,
+        "tn": 3142317,
+        "fp": 361534,
+        "fn": 929333,
+        "missed_label_fraction": 0.47802,
+        "invented_path_fraction": 0.10318,
+        "symmetric_penalty_points": 29.06,
+        "symmetric_score": 70.94,
+        "iou": 0.44014,
+        "dice": 0.61124,
+        "precision": 0.73732,
+        "recall": 0.52198
+      },
+      "evidence": [
+        {
+          "kind": "worst",
+          "file": "D-0-worst-865b5ff9-0000750.jpg",
+          "iou": 0.0,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 750
+        },
+        {
+          "kind": "worst",
+          "file": "D-1-worst-865b5ff9-0000800.jpg",
+          "iou": 0.0,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 800
+        },
+        {
+          "kind": "worst",
+          "file": "D-2-worst-865b5ff9-0001150.jpg",
+          "iou": 0.0,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 1150
+        },
+        {
+          "kind": "best",
+          "file": "D-3-best-66ae6f3a-0000450.jpg",
+          "iou": 0.91506,
+          "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+          "frame_index": 450
+        },
+        {
+          "kind": "best",
+          "file": "D-4-best-865b5ff9-0000030.jpg",
+          "iou": 0.84418,
+          "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+          "frame_index": 30
+        }
+      ]
+    }
+  ],
+  "baseline": [
+    {
+      "label": "Aktives globales Modell (global-path-20260803T193255Z-8b5ded24)",
+      "train": "203 Frames beider Missionen",
+      "validation": "48 Frames derselben Missionen",
+      "metrics": {
+        "tp": 655507,
+        "tn": 1078452,
+        "fp": 115555,
+        "fn": 52246,
+        "missed_label_fraction": 0.07382,
+        "invented_path_fraction": 0.09678,
+        "symmetric_penalty_points": 8.53,
+        "symmetric_score": 91.47,
+        "iou": 0.79619,
+        "dice": 0.88653,
+        "precision": 0.85014,
+        "recall": 0.92618
+      }
+    }
+  ]
+}
