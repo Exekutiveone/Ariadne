@@ -61,6 +61,11 @@ Aktivieren: LFS-Datenpaket buchen oder eigenes Remote verwenden.
 - Laufender Zustand (Checkpoints, Jobstatus) liegt unter `%LOCALAPPDATA%\Ariadne\runtime`,
   nicht im Projektordner — das Repo liegt in OneDrive und Sync-Sperren wuerden laufende
   Jobs abbrechen. Ueber `ARIADNE_RUNTIME_DIR` aenderbar, `ARIADNE_DATA_DIR` fuer die Daten.
+- Entwickelt wird auf Python 3.14, die CI prueft gegen 3.12. Auf 3.14 werden
+  Annotationen verzoegert ausgewertet (PEP 649), auf 3.12 nicht — Fehler in
+  Annotationen fallen deshalb lokal nicht zwangslaeufig auf. `MissionStore.list`
+  ueberschattet den Builtin `list`; `storage.py` braucht darum
+  `from __future__ import annotations`.
 - Ground-Truth-Polygonpunkte sind auf das Originalbild normiert, nie in Pixeln.
   Aenderungen an einem Frame duerfen nie einen anderen Frame veraendern.
 - Aendert sich die Merkmalszahl in `_features`, werden alle gespeicherten Modelle

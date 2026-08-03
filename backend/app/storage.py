@@ -1,3 +1,9 @@
+# Notwendig, weil die Methode MissionStore.list den Builtin `list` innerhalb des
+# Klassenkoerpers ueberschattet: `list[UploadFile]` in create() wuerde sonst auf
+# die Methode zugreifen und beim Import scheitern. Python 3.14 wertet
+# Annotationen verzoegert aus (PEP 649) und verdeckt das, 3.12 nicht.
+from __future__ import annotations
+
 import hashlib
 import os
 import shutil
