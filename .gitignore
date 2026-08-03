@@ -22,8 +22,7 @@ data/**/derived/
 data/runtime_cache/
 data/global_models/*/video_analyses/
 
-# Originalvideos: 6 Dateien, 3,1 GB. LFS ist in .gitattributes vorbereitet,
-# sprengt aber GitHubs Gratiskontingent (1 GB Storage, 1 GB Traffic/Monat).
-# Bewusst ausgeklammert, bis ueber LFS-Datenpaket oder eigenes Remote
-# entschieden ist. Die Dateien liegen zusaetzlich in den Importordnern.
+# Originalvideos: 6 Dateien, 3,1 GB. Bleiben bewusst dauerhaft lokal und
+# werden nicht hochgeladen, auch nicht ueber LFS. Das Repo dient nur der
+# Dokumentation und Versionierung des Codes.
 data/missions/*/videos/

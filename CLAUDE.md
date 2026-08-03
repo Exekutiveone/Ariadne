@@ -42,14 +42,20 @@ Pytest **muss** als `python -m pytest` laufen, damit das Wurzelverzeichnis auf
 | Pfad | Groesse | In Git? |
 |---|---|---|
 | `data/missions/*/ground_truth`, `path_refinements` | 0,7 MB | **ja** — Handarbeit, nicht reproduzierbar |
-| `data/missions/*/videos` | 3,1 GB | nein — siehe LFS-Entscheidung unten |
+| `data/missions/*/videos` | 3,1 GB | nein — bleiben dauerhaft lokal |
 | `data/missions/*/derived` | 470 MB | nein — bei jedem Lauf neu berechnet |
 | `data/runtime_cache`, `data/Mission1`, `data/Mission 2` | 3,1 GB | nein — Cache bzw. Duplikate |
 
-**Offene Entscheidung:** `.gitattributes` richtet Git LFS fuer `.mov/.mp4/.npz`
-bereits ein, aber 3,1 GB Video sprengen GitHubs Gratiskontingent (1 GB Storage,
-1 GB Traffic pro Monat). Die Videos sind deshalb vorerst ignoriert. Vor dem
-Aktivieren: LFS-Datenpaket buchen oder eigenes Remote verwenden.
+**Entschieden (03.08.2026): Videos und Missionsdaten bleiben lokal.** Das Repo
+ist ausschliesslich Dokumentation und Versionierung des Codes; die Anwendung
+laeuft auf dem Rechner des Nutzers gegen die lokalen Daten. Es werden keine
+Videos hochgeladen, auch nicht ueber LFS. Die LFS-Regeln in `.gitattributes`
+bleiben als Absicherung stehen, greifen aber nicht, weil die Videopfade
+ignoriert sind.
+
+Wer das Repo klont, bekommt Code, Ground Truth und Refinements, aber keine
+Videos — Missionen muessen lokal neu angelegt oder die Videodateien manuell
+nach `data/missions/<mission_id>/videos/` kopiert werden.
 
 ## Konventionen und Fallstricke
 
