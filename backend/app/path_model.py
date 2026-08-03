@@ -22,6 +22,36 @@ SAMPLES_PER_CLASS_PER_FRAME = 450
 RIDGE_LAMBDA = 0.08
 RANDOM_SEED = 42
 
+# Abstufung der binären Wegmaske in sechs Anzeigeklassen (AGENT_ANWEISUNG.md).
+# Farb- und Wertetabelle ist mit dem Nutzer abgestimmt und im Frontend exakt
+# zu übernehmen; Aufbau wie GROUND_TRUTH_ONTOLOGY in annotations.py.
+GRADE_ONTOLOGY = {
+    "unrated": {"value": 0, "label": "Nicht bewertet / Umgebung", "color": "#00000000"},
+    "safe": {"value": 1, "label": "Sicher befahrbar", "color": "#1e8c46"},
+    "good": {"value": 2, "label": "Gut befahrbar", "color": "#55d96f"},
+    "marginal": {"value": 3, "label": "Knapp befahrbar", "color": "#a3ecb4"},
+    "risky": {"value": 4, "label": "Potenziell befahrbar, mit Risiko", "color": "#f08c3a"},
+    "problem": {"value": 5, "label": "Problemzone / Hindernis", "color": "#e05b52"},
+}
+# Bandgrenzen auf dem normierten Abstand m = (score - threshold) / max(1e-6, 1 - threshold).
+# Startwerte laut Arbeitsanweisung; sie stehen in jeder API-Antwort (grading-Block),
+# damit Ergebnisse reproduzierbar bleiben.
+GRADE_SAFE_MIN_MARGIN = 0.6
+GRADE_GOOD_MIN_MARGIN = 0.25
+GRADE_RISKY_MIN_MARGIN = -0.2
+# Rote Problemzonen: nur zusammenhängende sicher-negative Flächen, die mindestens
+# diesen Bildanteil belegen und der Grünfläche nahe kommen (Dilatationsradius in
+# Pixeln des Modellrasters, MODEL_WIDTH breit).
+GRADE_PROBLEM_MIN_AREA_FRACTION = 0.002
+GRADE_PROBLEM_NEIGHBOURHOOD = 9
+# Qualifizierte Komponenten färben nur ihre Pixel in diesem Band um den Fahrbereich
+# (Kernelgröße der Dilatation, Reichweite ~12 px im Modellraster). Nötig, weil in
+# echten Waldframes Wald und Himmel EINE zusammenhängende Negativkomponente bilden,
+# die den Weg immer irgendwo berührt — ohne Begrenzung würde der gesamte Hintergrund
+# rot. Realdaten-Befund vom 03.08.2026: ~50 % Rotanteil pro Frame statt Hindernissen
+# direkt am Weg. Himmel und ferne Umgebung bleiben mit dem Band transparent.
+GRADE_PROBLEM_CLIP = 25
+
 
 def _confirmed_annotations(mission_dir: Path):
     records = []
@@ -212,6 +242,57 @@ def _clean_prediction(scores, shape, threshold):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
     return mask
+
+
+def _grade_prediction(scores, prediction, threshold, shape):
+    """Stuft die bereinigte Binärmaske in die sechs Klassen von GRADE_ONTOLOGY ab.
+
+    Rein additiv zur bestehenden Inferenz: Innerhalb von prediction==1 entstehen
+    ausschließlich die Grünstufen 1-3, außerhalb ausschließlich 0, 4 oder 5.
+    """
+    # 3x3-Mittelung der Abstände glättet die Stufengrenzen, damit das Overlay im
+    # Video nicht flimmert (leichte Glättung analog _clean_prediction).
+    margins = (scores.reshape(shape).astype(np.float32) - threshold) / max(1e-6, 1.0 - threshold)
+    margins = cv2.blur(margins, (3, 3))
+    inside = prediction.astype(bool)
+    grades = np.zeros(shape, np.uint8)
+    grades[inside] = GRADE_ONTOLOGY["marginal"]["value"]
+    grades[inside & (margins >= GRADE_GOOD_MIN_MARGIN)] = GRADE_ONTOLOGY["good"]["value"]
+    grades[inside & (margins >= GRADE_SAFE_MIN_MARGIN)] = GRADE_ONTOLOGY["safe"]["value"]
+    grades[~inside & (margins >= GRADE_RISKY_MIN_MARGIN)] = GRADE_ONTOLOGY["risky"]["value"]
+    # Rot nur für sicher-negative, zusammenhängende Flächen mit Mindestgröße in
+    # unmittelbarer Nachbarschaft des Fahrbereichs; alles Übrige bleibt transparent.
+    candidates = (~inside & (margins < GRADE_RISKY_MIN_MARGIN)).astype(np.uint8)
+    candidates = cv2.morphologyEx(candidates, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    if candidates.any() and inside.any():
+        kernel = np.ones((GRADE_PROBLEM_NEIGHBOURHOOD, GRADE_PROBLEM_NEIGHBOURHOOD), np.uint8)
+        near_path = cv2.dilate(inside.astype(np.uint8), kernel).astype(bool)
+        clip_kernel = np.ones((GRADE_PROBLEM_CLIP, GRADE_PROBLEM_CLIP), np.uint8)
+        clip_band = cv2.dilate(inside.astype(np.uint8), clip_kernel).astype(bool)
+        min_area = max(1, int(GRADE_PROBLEM_MIN_AREA_FRACTION * shape[0] * shape[1]))
+        count, components = cv2.connectedComponents(candidates, connectivity=8)
+        for component in range(1, count):
+            member = components == component
+            if int(member.sum()) >= min_area and bool((member & near_path).any()):
+                grades[member & clip_band] = GRADE_ONTOLOGY["problem"]["value"]
+    return grades
+
+
+def _grading_summary(threshold: float):
+    return {
+        "margin": "m = (score - threshold) / max(1e-6, 1 - threshold)",
+        "threshold": round(float(threshold), 6),
+        "bands": {
+            "safe_min_margin": GRADE_SAFE_MIN_MARGIN,
+            "good_min_margin": GRADE_GOOD_MIN_MARGIN,
+            "risky_min_margin": GRADE_RISKY_MIN_MARGIN,
+        },
+        "problem_min_area_fraction": GRADE_PROBLEM_MIN_AREA_FRACTION,
+        "problem_neighbourhood_px": GRADE_PROBLEM_NEIGHBOURHOOD,
+        "problem_clip_px": GRADE_PROBLEM_CLIP,
+        "smoothing": "3x3 mean blur on margins, 3x3 opening on problem candidates",
+        "note": "KI-Einschätzung der Befahrbarkeit, keine sicherheitsrelevante Fahrfreigabe.",
+    }
 
 
 def confusion_counts(truth: np.ndarray, prediction: np.ndarray):
@@ -506,6 +587,7 @@ def predict_path_frame(mission: MissionRecord, mission_dir: Path, video_id: str,
     resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
     scores = _predict_scores(_features(resized), model)
     prediction = _clean_prediction(scores, (height, width), threshold)
+    grades = _grade_prediction(scores, prediction, threshold, (height, width))
     margin = np.abs(scores - threshold)
     response = {
         "schema_version": MODEL_SCHEMA_VERSION,
@@ -514,6 +596,9 @@ def predict_path_frame(mission: MissionRecord, mission_dir: Path, video_id: str,
         "frame_index": frame_index,
         "timestamp_ms": round(frame_index / fps * 1000),
         "mask": {"width": width, "height": height, "rle": _encode_binary_rle(prediction)},
+        "grade_mask": {"width": width, "height": height, "rle": _encode_binary_rle(grades)},
+        "grade_ontology": GRADE_ONTOLOGY,
+        "grading": _grading_summary(threshold),
         "path_fraction": round(float(prediction.mean()), 5),
         "mean_separation": round(float(margin.mean()), 5),
         "confidence_note": "Uncalibrated distance from the learned decision threshold.",

@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from .path_model import (
+    GRADE_ONTOLOGY,
     MODEL_ID,
     MODEL_SCHEMA_VERSION,
     MODEL_WIDTH,
@@ -28,6 +29,8 @@ from .path_model import (
     _features,
     _fit_kernel_classifier,
     _frame_split,
+    _grade_prediction,
+    _grading_summary,
     _load_refinements,
     _polygon_mask,
     _predict_scores,
@@ -241,6 +244,7 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
     resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
     scores = _predict_scores(_features(resized), model)
     prediction = _clean_prediction(scores, (height, width), threshold)
+    grades = _grade_prediction(scores, prediction, threshold, (height, width))
     response = {
         "schema_version": MODEL_SCHEMA_VERSION,
         "scope": "global_cross_mission",
@@ -250,6 +254,9 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
         "frame_index": frame_index,
         "timestamp_ms": round(frame_index / fps * 1000),
         "mask": {"width": width, "height": height, "rle": _encode_binary_rle(prediction)},
+        "grade_mask": {"width": width, "height": height, "rle": _encode_binary_rle(grades)},
+        "grade_ontology": GRADE_ONTOLOGY,
+        "grading": _grading_summary(threshold),
         "path_fraction": round(float(prediction.mean()), 5),
         "source": "global_cpu_model_inference_on_exact_original_video_frame",
     }
