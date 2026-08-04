@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
-import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react'
+import type {CSSProperties, PointerEvent as ReactPointerEvent} from 'react'
 import {
   createOffPathInterval,
   deleteCriticalFlag,
@@ -57,6 +57,7 @@ type Drag =
   | {kind: 'vertex'; index: number; before: NormalizedPoint[]}
   | {kind: 'polygon'; origin: NormalizedPoint; before: NormalizedPoint[]}
   | {kind: 'pan'; clientX: number; clientY: number; before: {x: number; y: number}}
+  | {kind: 'trajectory-vertex'; index: number; before: NormalizedPoint[]}
 
 const emptySummary = (missionId: string): GroundTruthSummary => ({
   schema_version: '2.0',
@@ -69,6 +70,13 @@ const emptySummary = (missionId: string): GroundTruthSummary => ({
 const copyPoints = (points: NormalizedPoint[]) => points.map(([x, y]) => [x, y] as NormalizedPoint)
 const clamp = (value: number, minimum = 0, maximum = 1) => Math.max(minimum, Math.min(maximum, value))
 const timestampFor = (frameIndex: number, fps: number) => Math.round((frameIndex / fps) * 1000)
+
+/** Haelt das Bild innerhalb seines Rahmens: bei minZoom (1) bleibt nur (0,0)
+ *  gueltig, darueber darf es sich hoechstens bis zum eigenen Rand verschieben
+ *  lassen, nie darueber hinaus in leeren Raum. */
+export function clampPan(pan: {x: number; y: number}, zoom: number, width: number, height: number) {
+  return {x: clamp(pan.x, width * (1 - zoom), 0), y: clamp(pan.y, height * (1 - zoom), 0)}
+}
 
 // Liegt jetzt in masks.ts; hier weiterhin exportiert, weil der Labeler die
 // Einstiegsstelle fuer den Refinement-Klick ist.
@@ -837,13 +845,13 @@ export default function GroundTruthLabeler({
     return normalizedPointFromBounds(event.clientX, event.clientY, bounds)
   }
 
-  const nearestVertex = (event: ReactPointerEvent<SVGSVGElement>, point: NormalizedPoint) => {
+  const nearestPointIndex = (event: ReactPointerEvent<SVGSVGElement>, point: NormalizedPoint, candidates: NormalizedPoint[]) => {
     const bounds = event.currentTarget.getBoundingClientRect()
     const thresholdX = 13 / Math.max(1, bounds.width)
     const thresholdY = 13 / Math.max(1, bounds.height)
     let match: number | null = null
     let best = 1
-    points.forEach(([x, y], index) => {
+    candidates.forEach(([x, y], index) => {
       const distance = ((point[0] - x) / thresholdX) ** 2 + ((point[1] - y) / thresholdY) ** 2
       if (distance <= best) {
         best = distance
@@ -852,14 +860,21 @@ export default function GroundTruthLabeler({
     })
     return match
   }
+  const nearestVertex = (event: ReactPointerEvent<SVGSVGElement>, point: NormalizedPoint) => nearestPointIndex(event, point, points)
 
   const pointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (loading || saving) return
     const point = pointFromEvent(event)
     if (trajectoryMode) {
+      const trajectoryVertex = nearestPointIndex(event, point, trajectory)
+      if (trajectoryVertex !== null) {
+        dragRef.current = {kind: 'trajectory-vertex', index: trajectoryVertex, before: copyPoints(trajectory)}
+        event.currentTarget.setPointerCapture(event.pointerId)
+        return
+      }
       // Von unten nach oben sortiert: die Bahn läuft vom Fahrzeug weg.
       setTrajectory(current => [...current, point].sort((a, b) => b[1] - a[1]))
-      setMessage('Bahnpunkt gesetzt. Rechtsklick auf einen Punkt entfernt ihn wieder.')
+      setMessage('Bahnpunkt gesetzt. Ziehen verschiebt ihn, Rechtsklick entfernt ihn.')
       return
     }
     if (refinementMode) {
@@ -905,12 +920,22 @@ export default function GroundTruthLabeler({
     const drag = dragRef.current
     if (!drag) return
     if (drag.kind === 'pan') {
-      setPan({x: drag.before.x + event.clientX - drag.clientX, y: drag.before.y + event.clientY - drag.clientY})
+      const bounds = stageRef.current?.getBoundingClientRect()
+      setPan(
+        clampPan(
+          {x: drag.before.x + event.clientX - drag.clientX, y: drag.before.y + event.clientY - drag.clientY},
+          zoom,
+          bounds?.width ?? 0,
+          bounds?.height ?? 0,
+        ),
+      )
       return
     }
     const point = pointFromEvent(event)
     if (drag.kind === 'vertex') {
       setPoints(current => current.map((item, index) => (index === drag.index ? point : item)))
+    } else if (drag.kind === 'trajectory-vertex') {
+      setTrajectory(current => current.map((item, index) => (index === drag.index ? point : item)))
     } else {
       const dx = point[0] - drag.origin[0]
       const dy = point[1] - drag.origin[1]
@@ -926,7 +951,11 @@ export default function GroundTruthLabeler({
 
   const pointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current
-    if (drag && drag.kind !== 'pan') {
+    if (drag?.kind === 'trajectory-vertex') {
+      // Reihenfolge nach y wiederherstellen: die Bahn läuft vom Fahrzeug weg,
+      // ein verschobener Punkt darf sich mit seinem Nachbarn vertauschen.
+      setTrajectory(current => [...current].sort((a, b) => b[1] - a[1]))
+    } else if (drag && drag.kind !== 'pan') {
       setPast(current => [...current.slice(-49), copyPoints(drag.before)])
       setFuture([])
       setDirty(true)
@@ -960,18 +989,36 @@ export default function GroundTruthLabeler({
     setPan({x: 0, y: 0})
   }
   const zoomAt = (nextZoom: number, clientX?: number, clientY?: number) => {
-    const bounded = clamp(nextZoom, 0.5, 6)
+    // Minimum 1: darunter waere das Bild kleiner als sein Rahmen, und der
+    // dann leere Rand liesse sich sinnlos verschieben.
+    const bounded = clamp(nextZoom, 1, 6)
     const bounds = stageRef.current?.getBoundingClientRect()
-    const x = clientX !== undefined && bounds ? clientX - bounds.left : (bounds?.width ?? 0) / 2
-    const y = clientY !== undefined && bounds ? clientY - bounds.top : (bounds?.height ?? 0) / 2
+    const width = bounds?.width ?? 0
+    const height = bounds?.height ?? 0
+    const x = clientX !== undefined && bounds ? clientX - bounds.left : width / 2
+    const y = clientY !== undefined && bounds ? clientY - bounds.top : height / 2
     const ratio = bounded / zoom
-    setPan(current => ({x: x - (x - current.x) * ratio, y: y - (y - current.y) * ratio}))
+    setPan(current => clampPan({x: x - (x - current.x) * ratio, y: y - (y - current.y) * ratio}, bounded, width, height))
     setZoom(bounded)
   }
-  const wheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    zoomAt(zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX, event.clientY)
-  }
+
+  // Natives, nicht-passives Listener: React haengt Wheel-Handler seit v17
+  // passiv an die Wurzel, wodurch event.preventDefault() dort wirkungslos
+  // bleibt und die Seite beim Zoomen im Bild trotzdem mitscrollt.
+  useEffect(() => {
+    const element = stageRef.current
+    if (!element) return
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      zoomAt(zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX, event.clientY)
+    }
+    element.addEventListener('wheel', handleWheel, {passive: false})
+    return () => element.removeEventListener('wheel', handleWheel)
+    // activeVideo?.video_id: die fruehe Rueckgabe vor dem ersten geladenen
+    // Video liefert noch keinen Stage-Knoten, stageRef.current ist dann null.
+    // Ohne diese Abhaengigkeit haengt sich der Listener nie ein, weil sich
+    // zoom zwischen "laedt noch" und "geladen" nicht aendert.
+  }, [zoom, activeVideo?.video_id])
 
   const navigate = (direction: -1 | 1, allowDirty = false, carryForward = true) => {
     if (dirty && !allowDirty) {
@@ -1499,7 +1546,7 @@ export default function GroundTruthLabeler({
             </div>
           )}
           <div className="labeling-stage-background">
-            <div className="labeling-stage" ref={stageRef} style={frameStyle} onWheel={wheel}>
+            <div className="labeling-stage" ref={stageRef} style={frameStyle}>
               <div className="labeling-transform" style={transformStyle}>
                 <video
                   ref={videoRef}

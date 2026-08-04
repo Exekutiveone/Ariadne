@@ -122,6 +122,7 @@ vi.mock('./api', () => ({
 
 import GroundTruthLabeler, {
   buildFrameSelection,
+  clampPan,
   normalizedPointFromBounds,
   pointerAction,
   polygonForNextFrame,
@@ -140,6 +141,17 @@ test('builds selectable frame sets by stride or requested count', () => {
 test('keeps polygon coordinates stable when the viewport is zoomed and panned', () => {
   expect(normalizedPointFromBounds(250, 400, {left: 0, top: 0, width: 1000, height: 800})).toEqual([0.25, 0.5])
   expect(normalizedPointFromBounds(600, 850, {left: 100, top: 50, width: 2000, height: 1600})).toEqual([0.25, 0.5])
+})
+
+test('never lets the image be panned into showing empty space beyond its own edges', () => {
+  // Bei Originalgroesse (Zoom 1) gibt es nichts zu verschieben.
+  expect(clampPan({x: 40, y: -40}, 1, 300, 500)).toEqual({x: 0, y: 0})
+  // Herausgezogen (positiv) clamped auf 0 - der linke/obere Rand darf nicht ueber den Rahmenrand hinaus.
+  expect(clampPan({x: 999, y: 999}, 1.5, 300, 500)).toEqual({x: 0, y: 0})
+  // Hineingezogen (negativ) clamped auf width*(1-zoom) - der rechte/untere Rand darf nicht sichtbar werden.
+  expect(clampPan({x: -999, y: -999}, 1.5, 300, 500)).toEqual({x: -150, y: -250})
+  // Innerhalb der Grenzen bleibt der Wert unveraendert.
+  expect(clampPan({x: -60, y: -90}, 1.5, 300, 500)).toEqual({x: -60, y: -90})
 })
 
 test('carries polygons only forward and always prioritizes vertex dragging', () => {
