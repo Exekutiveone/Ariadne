@@ -33,6 +33,7 @@ from .models import (
     SurveyPayload,
     TerrainTrainingInput,
     TerrainVideoPredictionInput,
+    TrajectoryInput,
     VideoMeta,
     VideoTerrainCategoryInput,
 )
@@ -52,6 +53,7 @@ from .terrain_model import (
     terrain_prediction_run,
     train_terrain_model,
 )
+from .trajectories import delete_trajectory, get_trajectory, list_trajectories, save_trajectory
 
 logging.basicConfig(level=os.getenv("ARIADNE_LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ariadne")
@@ -186,6 +188,54 @@ def corridor_check(
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, f"Korridorprüfung nicht möglich: {exc}") from exc
+
+
+@app.get("/api/v1/missions/{mission_id}/trajectories")
+def trajectories_list(mission_id: str, video_id: str | None = None):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return list_trajectories(record, store.root / mission_id, video_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}")
+def trajectory_get(mission_id: str, video_id: str, frame_index: int):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    trajectory = get_trajectory(store.root / mission_id, video_id, frame_index)
+    if trajectory is None:
+        raise HTTPException(404, "Für diesen Frame ist keine Trajektorie gespeichert")
+    return trajectory
+
+
+@app.put("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}")
+def trajectory_put(mission_id: str, video_id: str, frame_index: int, payload: TrajectoryInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return save_trajectory(record, store.root / mission_id, video_id, frame_index, payload)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.delete("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}", status_code=204)
+def trajectory_delete(mission_id: str, video_id: str, frame_index: int):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    if not delete_trajectory(store.root / mission_id, video_id, frame_index):
+        raise HTTPException(404, "Für diesen Frame ist keine Trajektorie gespeichert")
 
 
 NO_TERRAIN_MODEL = "Es wurde noch kein Terrainmodell trainiert"

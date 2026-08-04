@@ -103,6 +103,18 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   ausserhalb des Bildes fuehren zu "unsicher", nicht zu "frei".
 - `corridor.py` kennt weder Modell noch Mission und bekommt nur Masken. Diese
   Trennung erhalten — sie macht die Geometrie ohne Modell testbar.
+- Abstufungsstufe 0 heisst **nicht bewertet**, nicht **nicht befahrbar**. Zeilen,
+  in denen der Korridor ausschliesslich Stufe-0-Pixel trifft, gehen gar nicht in
+  die Bewertung ein (`rows.undecided`). Ohne diese Unterscheidung meldete jeder
+  reale Waldframe "blockiert": knapp unter dem Fluchtpunkt liegen Himmel und
+  Ferne, und das waren 31 von 37 gesperrten Zeilen (Befund vom 04.08.2026).
+  Eine Mindestbreite in Pixeln loest das Problem **nicht** — sie kippt zusaetzlich
+  echte freie Zeilen auf "unsicher".
+- Trajektorien liegen unter `data/missions/*/trajectories` und sind Handarbeit
+  wie die Ground-Truth-Polygone: normiert auf das Originalbild, versioniert.
+  `origin` unterscheidet unveraendert uebernommenen Modellvorschlag von
+  Handarbeit — ohne das Feld waere spaeter nicht mehr trennbar, was der Mensch
+  wirklich beigetragen hat.
 - Die Run-Registry haelt keine zweite Wahrheit: die Terrainkategorie wird nach
   `mission.json` durchgeschrieben und beim Scan von dort zurueckgespiegelt. Nur
   Status und Notiz leben ausschliesslich in `data/registry.sqlite`. Diese Datei

@@ -3,7 +3,9 @@ import type {PointerEvent as ReactPointerEvent} from 'react'
 import {deleteCriticalFlag, getGlobalModelDashboard, getGlobalVideoAnalysisResult, getGlobalVideoAnalysisStatus, getLabelingVideos, listCriticalFlags, predictGlobalPathFrame, saveCriticalFlag, startGlobalVideoAnalysis, trainGlobalPathModel} from './api'
 import GradeLegend from './GradeLegend'
 import {AI_BINARY_PALETTE, COMPARISON_PALETTE, decodeRleValues, encodeRleValues, paintMaskCanvas, paletteFromGradeOntology} from './masks'
+import CorridorOverlay from './CorridorOverlay'
 import CorridorReadout from './CorridorReadout'
+import {useCorridorPlanner} from './corridorPlanner'
 import TerrainModelPanel from './TerrainModelPanel'
 import {terrainCategoryLabel} from './terrainCategories'
 import type {GlobalModelDashboardData, GlobalVideoAnalysisResult, GlobalVideoAnalysisStatus, GradeOntology, Grading, LabelingVideo, PathPrediction, TerrainMask} from './types'
@@ -54,6 +56,15 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
   }, [selectedMissionId])
 
   const activeVideo = videos.find(item => item.video_id === selectedVideoId) ?? videos[0]
+  const [planning, setPlanning] = useState(false)
+  const [trajectoryNote, setTrajectoryNote] = useState('')
+  const planner = useCorridorPlanner(
+    selectedMissionId,
+    activeVideo?.video_id ?? '',
+    frameIndex,
+    activeVideo ? Math.round(frameIndex / activeVideo.fps * 1000) : 0,
+    Boolean(activeVideo) && !playing,
+  )
 
   useEffect(() => {
     if (!selectedMissionId || !activeVideo) {
@@ -370,6 +381,18 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                 onPointerUp={endFlagDrawing}
                 onPointerLeave={endFlagDrawing}
               />
+              <CorridorOverlay
+                check={planner.check}
+                activeCorridor={planner.activeCorridor}
+                onSelectCorridor={planner.setSelected}
+                proposal={planner.corridorProposal}
+                draft={planner.draft}
+                planning={planning}
+                aspect={activeVideo ? activeVideo.width / activeVideo.height : 16 / 9}
+                onMovePoint={planner.movePoint}
+                onAddPoint={planner.addPoint}
+                onRemovePoint={planner.removePoint}
+              />
               {!analysisResult && !displayed && <div className="global-player-lock"><b>{analysisStatus?.status === 'running' ? `${Math.round(analysisStatus.progress * 100)} % analysiert` : 'Video noch nicht analysiert'}</b><span>Nach Abschluss kann das Video normal mit synchroner KI-Maske abgespielt werden.</span></div>}
               {predictionLoading && !analysisResult && <div className="global-prediction-loading">VORSCHAU WIRD BERECHNET …</div>}
             </div>
@@ -387,7 +410,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
               <label><input type="checkbox" checked={showAiMask} disabled={!analysisResult || layer.graded} onChange={event => setShowAiMask(event.target.checked)}/><span>KI-Maske anzeigen</span></label>
               <label><input type="checkbox" checked={showLabelMask} disabled={!analysisResult || layer.graded} onChange={event => setShowLabelMask(event.target.checked)}/><span>Label-Maske anzeigen</span></label>
             </div>
-            <CorridorReadout missionId={selectedMissionId} videoId={activeVideo?.video_id ?? ''} frameIndex={frameIndex} enabled={Boolean(activeVideo) && !playing}/>
+            <CorridorReadout planner={planner} planning={planning} onTogglePlanning={setPlanning} note={trajectoryNote} onNote={setTrajectoryNote} annotator="Simon"/>
             <div className="global-feedback-panel">
               <div className="section-head compact"><h3>Fehler melden</h3><p>Frame markieren, Schweregrad setzen und gemalte Fehlerfläche speichern.</p></div>
               <label><input type="checkbox" checked={showFeedbackBrush} onChange={event => setShowFeedbackBrush(event.target.checked)}/><span>Fehler-Pinsel aktivieren</span></label>

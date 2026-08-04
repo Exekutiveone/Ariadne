@@ -65,6 +65,15 @@ MAX_CLIPPED_FRACTION = 0.2
 MAX_BLOCKED_ROW_FRACTION = 0.05
 # Mindestbreite eines Wegrand-Laufs, damit die Zeile in den Geradenfit eingeht.
 MIN_EDGE_RUN_PX = 2
+# Stuetzstellen der ausgelieferten Polylinien. Genug fuer eine glatte Darstellung,
+# klein genug fuer eine Antwort pro Frame.
+GEOMETRY_SAMPLE_ROWS = 28
+# Fensterbreite der Glaettung der KI-Trajektorie in Bildzeilen.
+TRAJECTORY_SMOOTHING = 9
+# Reihenfolge bei gleichem Status: Mitte ist der Standard, Rechts folgt dem
+# Rechtsfahrgebot, Links ist die Ausweichoption.
+CORRIDOR_PREFERENCE = ("mitte", "rechts", "links")
+STATUS_PREFERENCE = {"free": 0, "uncertain": 1, "blocked": 2}
 
 # Abstufung aus GRADE_ONTOLOGY (path_model): 0 unbewertet, 1 sicher, 2 gut,
 # 3 knapp, 4 riskant, 5 Problemzone. Fuer die Korridorpruefung zaehlt nur
@@ -172,13 +181,22 @@ def image_decomposition(shape, vanishing_point):
 
 
 def _classify(mask: np.ndarray, grade_mask: np.ndarray | None):
-    """Pro Pixel: frei, unsicher oder blockiert."""
+    """Pro Pixel: frei, unsicher, und ob das Modell ueberhaupt geurteilt hat.
+
+    Stufe 0 heisst "nicht bewertet", nicht "nicht befahrbar". Ohne diese
+    Unterscheidung waere jede Zeile ohne Modellurteil — Himmel und Ferne knapp
+    unter dem Fluchtpunkt — automatisch ein Hindernis. Realdaten-Befund vom
+    04.08.2026: in echten Waldframes waren so 31 von 37 gesperrten Zeilen zu
+    100 % unbewertet, also gar kein Hindernis.
+    """
     if grade_mask is None:
+        # Ohne Abstufung ist die Binaermaske vollstaendig: 0 heisst dort wirklich
+        # "kein Weg", nicht "keine Aussage".
         free = mask.astype(bool)
-        return free, np.zeros_like(free)
+        return free, np.zeros_like(free), np.ones_like(free)
     free = np.isin(grade_mask, list(FREE_GRADES))
     uncertain = np.isin(grade_mask, list(UNCERTAIN_GRADES))
-    return free, uncertain
+    return free, uncertain, grade_mask != 0
 
 
 def _corridor_geometry(shape, vanishing_point, strip_px_bottom: float, offset: float):
@@ -209,6 +227,34 @@ def _row_status(free_row, uncertain_row, required_px: float, clipped_fraction: f
     return "blocked"
 
 
+def _normalized(points, shape):
+    """Bildpunkte auf 0..1 normieren — das Frontend skaliert sie auf das
+    Videoelement, dessen Aufloesung nicht die des Modellrasters ist."""
+    height, width = shape
+    return [
+        [round(float(np.clip(x, 0, width - 1)) / max(1, width - 1), 5), round(float(y) / max(1, height - 1), 5)]
+        for x, y in points
+    ]
+
+
+def _sample(rows, count: int = GEOMETRY_SAMPLE_ROWS):
+    """Gleichmaessige Stuetzstellen; die Polylinien bleiben klein genug, um sie
+    pro Frame durchs Netz zu schicken."""
+    if len(rows) <= count:
+        return list(rows)
+    picks = np.linspace(0, len(rows) - 1, count).round().astype(int)
+    return [rows[index] for index in dict.fromkeys(picks.tolist())]
+
+
+def _smooth(values, window: int = TRAJECTORY_SMOOTHING):
+    """Gleitender Mittelwert gegen das Zeilenrauschen der freien Laeufe."""
+    if len(values) < 3:
+        return list(values)
+    padded = np.pad(np.asarray(values, np.float64), (window // 2, window // 2), mode="edge")
+    kernel = np.ones(window) / window
+    return np.convolve(padded, kernel, mode="valid")[: len(values)].tolist()
+
+
 def evaluate_corridors(
     mask: np.ndarray,
     grade_mask: np.ndarray | None = None,
@@ -229,7 +275,7 @@ def evaluate_corridors(
         raise ValueError("Die Bodenbreite am unteren Bildrand muss größer als null sein")
 
     height, width = mask.shape
-    free, uncertain = _classify(mask, grade_mask)
+    free, uncertain, decided = _classify(mask, grade_mask)
     vanishing_point = estimate_vanishing_point(free)
     decomposition = image_decomposition(mask.shape, vanishing_point)
     first_row = decomposition["irrelevant_zone"]["first_evaluated_row"]
@@ -241,6 +287,10 @@ def evaluate_corridors(
     for name, offset in CORRIDOR_OFFSETS.items():
         centers, strips, bands = _corridor_geometry(mask.shape, vanishing_point, strip_px_bottom, offset)
         counts = {"free": 0, "uncertain": 0, "blocked": 0}
+        undecided_rows = 0
+        # Zeilen, in denen ein freier Streifen passt, samt seiner Mitte: daraus
+        # entsteht die vorgeschlagene Trajektorie.
+        drivable_rows, drivable_x = [], []
         for row in range(first_row, height):
             band = bands[row]
             if band < 1:
@@ -251,13 +301,23 @@ def evaluate_corridors(
             clipped_start = int(np.clip(np.floor(start), 0, width))
             clipped_stop = int(np.clip(np.ceil(stop), 0, width))
             outside = max(0.0, -start) + max(0.0, stop - width)
-            status = _row_status(
-                free[row, clipped_start:clipped_stop],
-                uncertain[row, clipped_start:clipped_stop],
-                strips[row],
-                outside / band,
-            )
+            if not decided[row, clipped_start:clipped_stop].any():
+                # Das Modell hat hier gar nicht geurteilt. Solche Zeilen gehen
+                # nicht in die Bewertung ein, statt still als Hindernis zu zaehlen.
+                undecided_rows += 1
+                continue
+            slice_free = free[row, clipped_start:clipped_stop]
+            slice_uncertain = uncertain[row, clipped_start:clipped_stop]
+            status = _row_status(slice_free, slice_uncertain, strips[row], outside / band)
             counts[status] += 1
+            if status != "blocked":
+                # Der beste Platz in dieser Zeile ist die Mitte des breitesten
+                # befahrbaren Laufs — nicht die Mitte des Korridors.
+                usable = slice_free if status == "free" else (slice_free | slice_uncertain)
+                run_start, run_length = _widest_run(usable)
+                if run_length:
+                    drivable_rows.append(row)
+                    drivable_x.append(clipped_start + run_start + (run_length - 1) / 2)
         evaluated = sum(counts.values())
         if evaluated < MIN_EVALUATED_ROWS:
             status = "uncertain"
@@ -277,6 +337,10 @@ def evaluate_corridors(
         else:
             status = "free"
             reason = f"In allen {evaluated} ausgewerteten Zeilen passt ein freier Streifen in den Korridor."
+        drawn = _sample(list(range(first_row, height)))
+        smoothed = _smooth(drivable_x)
+        trajectory_rows = _sample(drivable_rows)
+        trajectory = [(smoothed[drivable_rows.index(row)], row) for row in trajectory_rows if row in drivable_rows]
         corridors.append(
             {
                 "corridor": name,
@@ -285,16 +349,61 @@ def evaluate_corridors(
                 "status": status,
                 "status_label": STATUS_LABELS[status],
                 "reason": reason,
-                "rows": {"evaluated": evaluated, **counts},
+                "rows": {"evaluated": evaluated, **counts, "undecided": undecided_rows},
                 "bottom_center_x": round(float(width / 2 + offset * strip_px_bottom), 3),
+                # Normierte Polylinien fuer die Darstellung: Mittellinie und die
+                # beiden Raender des Suchbands, von der Fluchtpunktzeile abwaerts.
+                "geometry": {
+                    "center": _normalized([(centers[row], row) for row in drawn], mask.shape),
+                    "left": _normalized([(centers[row] - bands[row] / 2, row) for row in drawn], mask.shape),
+                    "right": _normalized([(centers[row] + bands[row] / 2, row) for row in drawn], mask.shape),
+                },
+                "trajectory": {
+                    "points": _normalized(trajectory, mask.shape),
+                    "rows": len(drivable_rows),
+                    "source": "widest_drivable_run_center_per_row",
+                },
             }
         )
+
+    # Vorschlag der KI: der bevorzugte Korridor, der noch befahrbar ist. Er ist
+    # ein Angebot zum Weiterbearbeiten, keine Fahrempfehlung.
+    candidates = sorted(
+        (item for item in corridors if item["trajectory"]["points"]),
+        key=lambda item: (STATUS_PREFERENCE[item["status"]], CORRIDOR_PREFERENCE.index(item["corridor"])),
+    )
+    best = candidates[0] if candidates else None
+    proposed = (
+        None
+        if best is None
+        else {
+            "corridor": best["corridor"],
+            "label": best["label"],
+            "status": best["status"],
+            "status_label": STATUS_LABELS[best["status"]],
+            "points": best["trajectory"]["points"],
+            "source": best["trajectory"]["source"],
+            "note": (
+                f"Vorschlag im Korridor {best['label']} ({STATUS_LABELS[best['status']]}): je Zeile die Mitte des "
+                "breitesten befahrbaren Laufs. Als Ausgangspunkt zum Nachbessern gedacht."
+            ),
+        }
+    )
 
     return {
         "schema_version": CORRIDOR_SCHEMA_VERSION,
         "kind": "image_space_corridor_check",
         "mask_size": {"width": width, "height": height},
-        "decomposition": decomposition,
+        "decomposition": {
+            **decomposition,
+            "vanishing_point_normalized": _normalized([(vanishing_point["x"], vanishing_point["y"])], mask.shape)[0],
+            "relevant_triangle_normalized": _normalized(
+                [(0, height - 1), (width - 1, height - 1), (vanishing_point["x"], vanishing_point["y"])],
+                mask.shape,
+            ),
+            "first_evaluated_row_normalized": round(first_row / max(1, height - 1), 5),
+        },
+        "proposed_trajectory": proposed,
         "strip": {
             "vehicle_width_m": vehicle_width_m,
             "clearance_m": clearance_m,

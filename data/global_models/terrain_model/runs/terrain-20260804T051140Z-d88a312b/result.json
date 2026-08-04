@@ -1,0 +1,412 @@
+{
+  "schema_version": "1.0",
+  "scope": "video_terrain_classification",
+  "kind": "training",
+  "run_id": "terrain-20260804T051140Z-d88a312b",
+  "created_at": "2026-08-04T05:11:40.178210+00:00",
+  "model": {
+    "id": "ariadne-cpu-terrain-rff",
+    "type": "random_fourier_kernel_ridge_frame_classifier",
+    "hardware": "CPU",
+    "cloud_used": false,
+    "input_width": 160,
+    "grid": 3,
+    "feature_count": 234,
+    "random_features": 256,
+    "softmax_scale": 2.0,
+    "confidence_threshold": 0.6
+  },
+  "classes": [
+    "asphaltierte_strasse",
+    "feld_landweg_mit_spuren",
+    "schotterweg",
+    "walduntergrund",
+    "wiese_flach",
+    "wiese_hoch"
+  ],
+  "dataset": {
+    "frame_stride": 15,
+    "label_source": "video_terrain_category_inherited_by_all_frames",
+    "categorized_videos": 13,
+    "uncategorized_videos": 0,
+    "videos": [
+      {
+        "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+        "mission_name": "Misson 3",
+        "video_id": "98bfc6b5-d4ea-4a83-b3cb-842eb99d0244",
+        "original_name": "IMG_9747.MOV",
+        "terrain_category": "asphaltierte_strasse",
+        "frames": 139
+      },
+      {
+        "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+        "mission_name": "Mission 4",
+        "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+        "original_name": "IMG_9751.MOV",
+        "terrain_category": "feld_landweg_mit_spuren",
+        "frames": 304
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "mission_name": "Mission 1",
+        "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+        "original_name": "Hoch-Format_End -_ Start.MOV",
+        "terrain_category": "schotterweg",
+        "frames": 152
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "mission_name": "Mission 1",
+        "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+        "original_name": "Quer-Format_End -_ Start.MOV",
+        "terrain_category": "schotterweg",
+        "frames": 151
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "mission_name": "Mission 1",
+        "video_id": "8eba07e3-82e6-4f78-add0-407092cef3b5",
+        "original_name": "Hoch-Format_Start -_ End.MOV",
+        "terrain_category": "schotterweg",
+        "frames": 149
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "mission_name": "Mission 1",
+        "video_id": "9e24cfa3-3e26-4b9f-8c31-4592227cad42",
+        "original_name": "Quer-Format_Start -_ End  .MOV",
+        "terrain_category": "schotterweg",
+        "frames": 151
+      },
+      {
+        "mission_id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+        "mission_name": "Misson  2",
+        "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+        "original_name": "IMG_9742.MOV",
+        "terrain_category": "walduntergrund",
+        "frames": 1246
+      },
+      {
+        "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+        "mission_name": "Mission 4",
+        "video_id": "0d66c221-86df-49f7-a066-bb494e389ec8",
+        "original_name": "IMG_9752.MOV",
+        "terrain_category": "wiese_flach",
+        "frames": 234
+      },
+      {
+        "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+        "mission_name": "Mission 4",
+        "video_id": "2f2c7f34-5735-42a9-935b-63d9ec4fee0a",
+        "original_name": "IMG_9750.MOV",
+        "terrain_category": "wiese_hoch",
+        "frames": 252
+      },
+      {
+        "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+        "mission_name": "Misson 3",
+        "video_id": "9216e58a-e522-4c42-92e9-2a682062084e",
+        "original_name": "IMG_9748.MOV",
+        "terrain_category": "feld_landweg_mit_spuren",
+        "frames": 521
+      },
+      {
+        "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+        "mission_name": "Misson 3",
+        "video_id": "139bce1e-a0f0-4b70-b57d-7ec4affbcba6",
+        "original_name": "IMG_9746.MOV",
+        "terrain_category": "schotterweg",
+        "frames": 242
+      },
+      {
+        "mission_id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+        "mission_name": "Misson  2",
+        "video_id": "e951a589-b376-409c-a072-be2d7f110bd7",
+        "original_name": "IMG_9743.MOV",
+        "terrain_category": "walduntergrund",
+        "frames": 1266
+      }
+    ],
+    "frames": 4807
+  },
+  "split": {
+    "strategy": "grouped_by_video_id",
+    "random_frame_split_used": false,
+    "same_video_in_multiple_parts": false,
+    "train": {
+      "videos": 9,
+      "frames": 2778,
+      "classes": [
+        "asphaltierte_strasse",
+        "feld_landweg_mit_spuren",
+        "schotterweg",
+        "walduntergrund",
+        "wiese_flach",
+        "wiese_hoch"
+      ],
+      "video_ids": [
+        "98bfc6b5-d4ea-4a83-b3cb-842eb99d0244",
+        "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+        "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+        "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+        "8eba07e3-82e6-4f78-add0-407092cef3b5",
+        "9e24cfa3-3e26-4b9f-8c31-4592227cad42",
+        "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+        "0d66c221-86df-49f7-a066-bb494e389ec8",
+        "2f2c7f34-5735-42a9-935b-63d9ec4fee0a"
+      ],
+      "all_classes": [
+        "asphaltierte_strasse",
+        "feld_landweg_mit_spuren",
+        "schotterweg",
+        "walduntergrund",
+        "wiese_flach",
+        "wiese_hoch"
+      ]
+    },
+    "validation": {
+      "videos": 3,
+      "frames": 2029,
+      "classes": [
+        "feld_landweg_mit_spuren",
+        "schotterweg",
+        "walduntergrund"
+      ],
+      "video_ids": [
+        "9216e58a-e522-4c42-92e9-2a682062084e",
+        "139bce1e-a0f0-4b70-b57d-7ec4affbcba6",
+        "e951a589-b376-409c-a072-be2d7f110bd7"
+      ],
+      "all_classes": [
+        "asphaltierte_strasse",
+        "feld_landweg_mit_spuren",
+        "schotterweg",
+        "walduntergrund",
+        "wiese_flach",
+        "wiese_hoch"
+      ]
+    },
+    "test": null,
+    "notes": [
+      "Kein Testteil gebildet: dafür werden mindestens drei Videos je Terrainkategorie benötigt. Die berichteten Werte stammen ausschließlich aus der Validierung."
+    ]
+  },
+  "calibration": {
+    "softmax_scale": 2.0,
+    "selected_on": "validation_frames_only",
+    "negative_log_likelihood": 0.813512
+  },
+  "train_metrics": {
+    "frames": 2778,
+    "accuracy": 0.99172,
+    "balanced_accuracy": 0.98568,
+    "mean_confidence": 0.84394,
+    "uncertain_frames": 126,
+    "uncertain_fraction": 0.04536,
+    "accuracy_on_confident": 0.99661,
+    "confusion_matrix": [
+      [
+        139,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        293,
+        0,
+        0,
+        10,
+        1
+      ],
+      [
+        0,
+        0,
+        603,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1246,
+        0,
+        0
+      ],
+      [
+        0,
+        3,
+        0,
+        0,
+        227,
+        4
+      ],
+      [
+        0,
+        3,
+        0,
+        0,
+        2,
+        247
+      ]
+    ],
+    "per_class": [
+      {
+        "terrain_category": "asphaltierte_strasse",
+        "support": 139,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      {
+        "terrain_category": "feld_landweg_mit_spuren",
+        "support": 304,
+        "precision": 0.97993,
+        "recall": 0.96382,
+        "f1": 0.97181
+      },
+      {
+        "terrain_category": "schotterweg",
+        "support": 603,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      {
+        "terrain_category": "walduntergrund",
+        "support": 1246,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      {
+        "terrain_category": "wiese_flach",
+        "support": 234,
+        "precision": 0.94979,
+        "recall": 0.97009,
+        "f1": 0.95983
+      },
+      {
+        "terrain_category": "wiese_hoch",
+        "support": 252,
+        "precision": 0.98016,
+        "recall": 0.98016,
+        "f1": 0.98016
+      }
+    ]
+  },
+  "validation_metrics": {
+    "frames": 2029,
+    "accuracy": 0.74125,
+    "balanced_accuracy": 0.4938,
+    "mean_confidence": 0.70645,
+    "uncertain_frames": 678,
+    "uncertain_fraction": 0.33415,
+    "accuracy_on_confident": 0.93042,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        50,
+        242,
+        9,
+        40,
+        108,
+        72
+      ],
+      [
+        0,
+        69,
+        6,
+        44,
+        62,
+        61
+      ],
+      [
+        0,
+        0,
+        0,
+        1256,
+        10,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "per_class": [
+      {
+        "terrain_category": "asphaltierte_strasse",
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      {
+        "terrain_category": "feld_landweg_mit_spuren",
+        "support": 521,
+        "precision": 0.77814,
+        "recall": 0.46449,
+        "f1": 0.58173
+      },
+      {
+        "terrain_category": "schotterweg",
+        "support": 242,
+        "precision": 0.4,
+        "recall": 0.02479,
+        "f1": 0.04669
+      },
+      {
+        "terrain_category": "walduntergrund",
+        "support": 1266,
+        "precision": 0.93731,
+        "recall": 0.9921,
+        "f1": 0.96393
+      },
+      {
+        "terrain_category": "wiese_flach",
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      {
+        "terrain_category": "wiese_hoch",
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    ]
+  },
+  "test_metrics": null,
+  "runtime_seconds": 206.118,
+  "limitations": [
+    "Die Klasse eines Frames stammt aus dem Videolabel, nicht aus einer Einzelbildprüfung.",
+    "Die Konfidenz ist ein auf der Validierung kalibrierter Score, keine belastbare Wahrscheinlichkeit.",
+    "Dies ist eine KI-gestützte Einschätzung und keine sicherheitsrelevante Fahrfreigabe."
+  ]
+}

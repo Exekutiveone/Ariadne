@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {expect, test, vi} from 'vitest'
 import {GRADE_ONTOLOGY_FALLBACK} from './masks'
 
@@ -49,24 +49,45 @@ vi.mock('./api', () => ({
   }),
   trainTerrainModel: vi.fn(),
   predictTerrainVideo: vi.fn(),
-  getCorridorCheck: async () => ({
-    schema_version: '1.0', kind: 'image_space_corridor_check', mask_size: {width: 160, height: 120},
-    decomposition: {
-      vanishing_point: {x: 80, y: 40, source: 'path_edge_line_intersection', rows_used: 79, residual_px: .4},
-      relevant_triangle: [[0, 119], [159, 119], [80, 40]],
-      irrelevant_zone: {kind: 'above_vanishing_point', first_evaluated_row: 42, rows_skipped: 42, image_fraction_skipped: .35, reason: 'Himmel und Ferne oberhalb des Fluchtpunkts werden nicht ausgewertet.'},
-      evaluated_rows: 78,
-    },
-    strip: {vehicle_width_m: 1.2, clearance_m: .1, required_width_m: 1.3, ground_width_at_bottom_m: 4, required_width_px_at_bottom: 52, scaling: 'linear', search_band_factor: 1.5},
-    corridors: [
-      {corridor: 'mitte', label: 'Mitte', meaning: 'Standard bei schmalen Wald- und Feldwegen', status: 'free', status_label: 'frei', reason: 'In allen 78 ausgewerteten Zeilen passt ein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 78, uncertain: 0, blocked: 0}, bottom_center_x: 80},
-      {corridor: 'rechts', label: 'Rechts', meaning: 'Rechtsfahrgebot', status: 'blocked', status_label: 'blockiert', reason: 'In 40 von 78 Zeilen passt kein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 38, uncertain: 0, blocked: 40}, bottom_center_x: 132},
-      {corridor: 'links', label: 'Links', meaning: 'Ausweichoption', status: 'uncertain', status_label: 'unsicher', reason: 'In 12 von 78 Zeilen ist der Streifen nicht sicher frei.', rows: {evaluated: 78, free: 66, uncertain: 12, blocked: 0}, bottom_center_x: 28},
-    ],
-    graded_input: true,
-    limitations: ['Nur Breitenprüfung.', 'Kalibrierung pro Kameraaufbau.', 'Deterministische Geometrie auf einer vorhergesagten Maske — keine sicherheitsrelevante Fahrfreigabe.'],
-    model_run_id: 'global-run-1', mission_id: 'mission-1', video_id: 'video-1', frame_index: 0, timestamp_ms: 0, path_fraction: .42, source: 'deterministic_geometry_on_global_model_mask',
-  }),
+  getCorridorCheck: async () => corridorCheck,
+  getTrajectory: async () => null,
+  saveTrajectory: (...args: unknown[]) => saveTrajectory(...(args as [])),
+  deleteTrajectory: vi.fn(),
+}))
+
+const geometry = (x: number) => ({
+  center: [[x, .35], [x, .68], [x, 1]],
+  left: [[x - .02, .35], [x - .1, .68], [x - .16, 1]],
+  right: [[x + .02, .35], [x + .1, .68], [x + .16, 1]],
+})
+
+const corridorCheck = {
+  schema_version: '1.0', kind: 'image_space_corridor_check', mask_size: {width: 160, height: 120},
+  decomposition: {
+    vanishing_point: {x: 80, y: 40, source: 'path_edge_line_intersection', rows_used: 79, residual_px: .4},
+    relevant_triangle: [[0, 119], [159, 119], [80, 40]],
+    irrelevant_zone: {kind: 'above_vanishing_point', first_evaluated_row: 42, rows_skipped: 42, image_fraction_skipped: .35, reason: 'Himmel und Ferne oberhalb des Fluchtpunkts werden nicht ausgewertet.'},
+    evaluated_rows: 78,
+    vanishing_point_normalized: [.5, .336],
+    relevant_triangle_normalized: [[0, 1], [1, 1], [.5, .336]],
+    first_evaluated_row_normalized: .353,
+  },
+  proposed_trajectory: {corridor: 'mitte', label: 'Mitte', status: 'free', status_label: 'frei', points: [[.5, .35], [.5, .68], [.5, 1]], source: 'widest_drivable_run_center_per_row', note: 'Vorschlag im Korridor Mitte'},
+  strip: {vehicle_width_m: 1.2, clearance_m: .1, required_width_m: 1.3, ground_width_at_bottom_m: 4, required_width_px_at_bottom: 52, scaling: 'linear', search_band_factor: 1.5},
+  corridors: [
+    {corridor: 'mitte', label: 'Mitte', meaning: 'Standard bei schmalen Wald- und Feldwegen', status: 'free', status_label: 'frei', reason: 'In allen 78 ausgewerteten Zeilen passt ein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 78, uncertain: 0, blocked: 0}, bottom_center_x: 80, geometry: geometry(.5), trajectory: {points: [[.5, .35], [.5, .68], [.5, 1]], rows: 78, source: 'widest_drivable_run_center_per_row'}},
+    {corridor: 'rechts', label: 'Rechts', meaning: 'Rechtsfahrgebot', status: 'blocked', status_label: 'blockiert', reason: 'In 40 von 78 Zeilen passt kein freier Streifen in den Korridor.', rows: {evaluated: 78, free: 38, uncertain: 0, blocked: 40}, bottom_center_x: 132, geometry: geometry(.82), trajectory: {points: [[.82, .68], [.82, 1]], rows: 38, source: 'widest_drivable_run_center_per_row'}},
+    {corridor: 'links', label: 'Links', meaning: 'Ausweichoption', status: 'uncertain', status_label: 'unsicher', reason: 'In 12 von 78 Zeilen ist der Streifen nicht sicher frei.', rows: {evaluated: 78, free: 66, uncertain: 12, blocked: 0}, bottom_center_x: 28, geometry: geometry(.18), trajectory: {points: [[.18, .35], [.18, 1]], rows: 66, source: 'widest_drivable_run_center_per_row'}},
+  ],
+  graded_input: true,
+  limitations: ['Nur Breitenprüfung.', 'Kalibrierung pro Kameraaufbau.', 'Deterministische Geometrie auf einer vorhergesagten Maske — keine sicherheitsrelevante Fahrfreigabe.'],
+  model_run_id: 'global-run-1', mission_id: 'mission-1', video_id: 'video-1', frame_index: 0, timestamp_ms: 0, path_fraction: .42, source: 'deterministic_geometry_on_global_model_mask',
+}
+
+const saveTrajectory = vi.fn(async () => ({
+  schema_version: '1.0', mission_id: 'mission-1', video_id: 'video-1', frame_index: 0, timestamp_ms: 0,
+  points: [[.5, .35], [.5, 1]], corridor: 'mitte', origin: 'model_proposal', note: '', annotator: 'Simon',
+  coordinate_space: 'normalized_to_original_frame', revision: 1, created_at: '', updated_at: '',
 }))
 
 import GlobalModelDashboard from './GlobalModelDashboard'
@@ -98,11 +119,55 @@ test('reports the three image-space corridors with their status', async () => {
   render(<GlobalModelDashboard onClose={() => undefined}/>)
 
   expect(await screen.findByText('BLOCKIERT')).toBeInTheDocument()
-  expect(screen.getByText('Korridore im Bildraum')).toBeInTheDocument()
+  expect(screen.getByText('Korridore und Trajektorie')).toBeInTheDocument()
   expect(screen.getByText('FREI')).toBeInTheDocument()
-  expect(screen.getByText('BLOCKIERT')).toBeInTheDocument()
   expect(screen.getByText('UNSICHER')).toBeInTheDocument()
   // Der Vorfilter aus A.4 wird sichtbar gemacht, nicht stillschweigend angewendet.
   expect(screen.getByText(/oberhalb des Fluchtpunkts werden nicht ausgewertet/)).toBeInTheDocument()
   expect(screen.getByText(/aus 79 Wegrandzeilen gefittet/)).toBeInTheDocument()
+})
+
+test('draws the corridor geometry and the vanishing point over the video', async () => {
+  const {container} = render(<GlobalModelDashboard onClose={() => undefined}/>)
+  await screen.findByText('BLOCKIERT')
+
+  const overlay = container.querySelector('.corridor-overlay')!
+  expect(overlay).toBeInTheDocument()
+  // Drei Korridore als Flaechen, dazu Fluchtpunkt und Irrelevanz-Zone.
+  expect(overlay.querySelectorAll('.corridor-wedge')).toHaveLength(3)
+  expect(overlay.querySelector('.corridor-vanishing')).toBeInTheDocument()
+  expect(overlay.querySelector('.corridor-irrelevant')).toBeInTheDocument()
+  expect(overlay.querySelector('.corridor-proposal')).toBeInTheDocument()
+  // Mitte ist vorgeschlagen und deshalb hervorgehoben.
+  expect(overlay.querySelector('.corridor-wedge.free.active')).toBeInTheDocument()
+})
+
+test('selecting another corridor moves the highlight', async () => {
+  const {container} = render(<GlobalModelDashboard onClose={() => undefined}/>)
+  await screen.findByText('BLOCKIERT')
+
+  fireEvent.click(screen.getByText('Links'))
+
+  expect(container.querySelector('.corridor-wedge.uncertain.active')).toBeInTheDocument()
+  expect(container.querySelector('.corridor-wedge.free.active')).not.toBeInTheDocument()
+})
+
+test('adopting the proposal yields draggable handles that can be saved', async () => {
+  const {container} = render(<GlobalModelDashboard onClose={() => undefined}/>)
+  await screen.findByText('BLOCKIERT')
+  expect(container.querySelector('.corridor-draft')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', {name: 'Vorschlag übernehmen'}))
+
+  expect(container.querySelector('.corridor-draft')).toBeInTheDocument()
+  expect(container.querySelectorAll('.corridor-handle').length).toBeGreaterThan(1)
+  expect(screen.getByText('3 Punkte im Entwurf')).toBeInTheDocument()
+  // Unveraendert uebernommen: das wird als Modellvorschlag festgehalten, nicht als Handarbeit.
+  expect(screen.getByText(/wird als „unverändert vom Modell" gespeichert/)).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', {name: 'Trajektorie speichern'}))
+  await waitFor(() => expect(saveTrajectory).toHaveBeenCalled())
+  const payload = (saveTrajectory.mock.calls[0] as unknown[])[3] as {origin: string; corridor: string; points: number[][]}
+  expect(payload).toMatchObject({origin: 'model_proposal', corridor: 'mitte'})
+  expect(payload.points).toHaveLength(3)
 })

@@ -125,6 +125,30 @@ class PathRefinementInput(BaseModel):
     action: Literal["accept_model"] = "accept_model"
 
 
+class TrajectoryInput(BaseModel):
+    """Von Hand geplante Trajektorie fuer genau einen Frame.
+
+    `origin` haelt fest, wie der Verlauf zustande kam: unveraendert vom Modell
+    uebernommen, daraus nachgebessert oder komplett selbst gesetzt. Ohne diese
+    Unterscheidung liesse sich spaeter nicht mehr sagen, was Handarbeit ist.
+    """
+
+    timestamp_ms: int = Field(ge=0)
+    points: list[tuple[float, float]] = Field(min_length=2, max_length=400)
+    corridor: Literal["mitte", "rechts", "links"] | None = None
+    origin: Literal["model_proposal", "manual_edit", "manual"] = "manual_edit"
+    note: str = Field(default="", max_length=1000)
+    annotator: str = Field(default="human", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def normalized_and_descending(self):
+        if any(not (0 <= x <= 1 and 0 <= y <= 1) for x, y in self.points):
+            raise ValueError("Trajektorienpunkte müssen auf das Videobild normiert sein")
+        if len({(round(x, 8), round(y, 8)) for x, y in self.points}) < 2:
+            raise ValueError("Eine Trajektorie benötigt mindestens zwei unterschiedliche Punkte")
+        return self
+
+
 class RunRegistryUpdateInput(BaseModel):
     """Teilaenderung eines Runs.
 

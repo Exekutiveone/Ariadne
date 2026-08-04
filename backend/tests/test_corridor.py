@@ -150,3 +150,31 @@ def test_an_empty_mask_is_uncertain_or_blocked_but_never_silently_free():
 def test_rejects_mismatched_grade_mask():
     with pytest.raises(ValueError, match="dieselbe Größe"):
         evaluate_corridors(_road(60), np.zeros((10, 10), np.uint8))
+
+
+def test_rows_the_model_never_judged_are_left_out_instead_of_counted_as_blocked():
+    """Realdaten-Befund vom 04.08.2026: knapp unter dem Fluchtpunkt liegen Himmel
+    und Ferne, dort steht in der Abstufung ueberall Stufe 0 — "nicht bewertet".
+    Das ist keine Aussage ueber Befahrbarkeit und darf kein Hindernis ergeben.
+    In echten Waldframes waren so 31 von 37 gesperrten Zeilen gar kein Hindernis.
+    """
+    mask = _road(79)
+    grades = np.where(mask > 0, 2, 0).astype(np.uint8)
+    horizon = int(VANISHING[1]) + 1
+    grades[horizon : horizon + 25, :] = 0
+
+    result = evaluate_corridors(mask, grades)
+    assert _status(result, "mitte") == "free"
+    assert _rows(result, "mitte")["blocked"] == 0
+    assert _rows(result, "mitte")["undecided"] >= 20
+
+
+def test_a_judged_obstacle_is_still_blocked():
+    """Gegenprobe: bewertete Pixel, die "nicht frei" sagen, bleiben ein Hindernis."""
+    mask = _road(79)
+    grades = np.where(mask > 0, 2, 0).astype(np.uint8)
+    grades[95:117, :] = 5
+
+    result = evaluate_corridors(mask, grades)
+    assert _status(result, "mitte") == "blocked"
+    assert _rows(result, "mitte")["blocked"] >= 20
