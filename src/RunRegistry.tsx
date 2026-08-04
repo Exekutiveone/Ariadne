@@ -8,7 +8,7 @@ const megabytes = (bytes: number) => `${new Intl.NumberFormat('de-DE', {maximumF
 /** A.5: eine Wahrheitsquelle fuer die Kette Run → Frames → Masken → Training.
  *  Der Videoordner wird bei jedem Laden gescannt; neue Aufnahmen erscheinen
  *  automatisch als Run. */
-export default function RunRegistry({onClose}: {onClose: () => void}) {
+export default function RunRegistry({onClose, onOpenRefinement = () => undefined}: {onClose: () => void; onOpenRefinement?: (run: RegistryRun) => void}) {
   const [listing, setListing] = useState<RegistryListing | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState('')
@@ -178,6 +178,9 @@ export default function RunRegistry({onClose}: {onClose: () => void}) {
                     Notiz speichern
                   </button>
                 </label>
+                <button type="button" className="registry-refinement" onClick={() => onOpenRefinement(run)}>
+                  Refinement
+                </button>
               </article>
             ))}
           </div>

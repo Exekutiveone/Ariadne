@@ -103,6 +103,9 @@ vi.mock('./api', () => ({
   }),
   saveCriticalFlag: vi.fn(),
   deleteCriticalFlag: vi.fn(),
+  listOffPathIntervals: async () => [],
+  createOffPathInterval: vi.fn(),
+  deleteOffPathInterval: vi.fn(),
   getGlobalVideoAnalysisStatus: async () => ({
     job_id: 'j',
     status: 'completed',
@@ -162,8 +165,9 @@ vi.mock('./api', () => ({
   }),
   trainTerrainModel: vi.fn(),
   predictTerrainVideo: vi.fn(),
-  getTrajectory: async () => null,
-  saveTrajectory: (...args: unknown[]) => saveTrajectory(...(args as [])),
+  listTrajectories: async () => [],
+  createTrajectory: (...args: unknown[]) => createTrajectory(...(args as [])),
+  updateTrajectory: vi.fn(),
   deleteTrajectory: vi.fn(),
 }))
 
@@ -186,31 +190,17 @@ const geometry = (x: number) => ({
 })
 
 const corridorCheck = {
-  schema_version: '1.0',
-  kind: 'image_space_corridor_check',
+  schema_version: '2.0',
+  kind: 'parallel_near_field_corridor_check',
   mask_size: {width: 160, height: 120},
-  decomposition: {
-    vanishing_point: {x: 80, y: 40, source: 'path_edge_line_intersection', rows_used: 79, residual_px: 0.4},
-    relevant_triangle: [
-      [0, 119],
-      [159, 119],
-      [80, 40],
-    ],
-    irrelevant_zone: {
-      kind: 'above_vanishing_point',
-      first_evaluated_row: 42,
-      rows_skipped: 42,
-      image_fraction_skipped: 0.35,
-      reason: 'Himmel und Ferne oberhalb des Fluchtpunkts werden nicht ausgewertet.',
-    },
+  region: {
+    kind: 'fixed_near_field_band',
+    first_evaluated_row: 50,
+    rows_skipped: 50,
+    image_fraction_skipped: 0.42,
+    reason: 'Nur das untere sichtbare Nahfeld wird auf Fahrzeugbreite geprüft.',
     evaluated_rows: 78,
-    vanishing_point_normalized: [0.5, 0.336],
-    relevant_triangle_normalized: [
-      [0, 1],
-      [1, 1],
-      [0.5, 0.336],
-    ],
-    first_evaluated_row_normalized: 0.353,
+    first_evaluated_row_normalized: 0.42,
   },
   proposed_trajectory: {
     corridor: 'mitte',
@@ -222,7 +212,7 @@ const corridorCheck = {
       [0.5, 0.68],
       [0.5, 1],
     ],
-    source: 'widest_drivable_run_center_per_row',
+    source: 'widest_drivable_run_center_in_parallel_near_field_band',
     note: 'Vorschlag im Korridor Mitte',
   },
   strip: {
@@ -231,7 +221,7 @@ const corridorCheck = {
     required_width_m: 1.3,
     ground_width_at_bottom_m: 4,
     required_width_px_at_bottom: 52,
-    scaling: 'linear',
+    scaling: 'konstante parallele Streifen im sichtbaren Nahfeld',
     search_band_factor: 1.5,
   },
   corridors: [
@@ -252,7 +242,7 @@ const corridorCheck = {
           [0.5, 1],
         ],
         rows: 78,
-        source: 'widest_drivable_run_center_per_row',
+        source: 'widest_drivable_run_center_in_parallel_near_field_band',
       },
     },
     {
@@ -271,7 +261,7 @@ const corridorCheck = {
           [0.82, 1],
         ],
         rows: 38,
-        source: 'widest_drivable_run_center_per_row',
+        source: 'widest_drivable_run_center_in_parallel_near_field_band',
       },
     },
     {
@@ -290,7 +280,7 @@ const corridorCheck = {
           [0.18, 1],
         ],
         rows: 66,
-        source: 'widest_drivable_run_center_per_row',
+        source: 'widest_drivable_run_center_in_parallel_near_field_band',
       },
     },
   ],
@@ -309,7 +299,8 @@ const corridorCheck = {
   source: 'deterministic_geometry_on_global_model_mask',
 }
 
-const saveTrajectory = vi.fn(async () => ({
+const createTrajectory = vi.fn(async () => ({
+  id: 'traj-1',
   schema_version: '1.0',
   mission_id: 'mission-1',
   video_id: 'video-1',
@@ -349,11 +340,26 @@ test('falls back to the precomputed binary mask when grading is switched off', a
 
   // Erst wenn die gespeicherte Analyse geladen ist, sind die Maskenschalter aktiv.
   expect(await screen.findByText('Wiedergabe bereit')).toBeInTheDocument()
+  const speedSlider = screen.getByRole('slider', {name: 'Wiedergabegeschwindigkeit'})
+  fireEvent.change(speedSlider, {target: {value: '4'}})
+  expect(speedSlider).toHaveValue('4')
   fireEvent.click(screen.getByRole('checkbox', {name: 'Abstufung anzeigen'}))
 
   expect(screen.queryByText('Sicher befahrbar')).not.toBeInTheDocument()
   expect(screen.getByRole('checkbox', {name: 'KI-Maske anzeigen'})).toBeEnabled()
   expect(screen.getByText(/vorberechnete globale KI-Wegmaske/)).toBeInTheDocument()
+})
+
+test('saves a paused incorrect frame immediately in the quick-review gallery', async () => {
+  render(<GlobalModelDashboard onClose={() => undefined} />)
+
+  expect(await screen.findByText('Wiedergabe bereit')).toBeInTheDocument()
+  expect(screen.getByText(/Noch nicht vorgemerkt oder gespeichert/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', {name: 'FALSCHEN FRAME DIREKT SPEICHERN'}))
+
+  expect(await screen.findByText('1 erfasst')).toBeInTheDocument()
+  expect(screen.getByText(/Referenzbereich: Frame 1 bis 1/)).toBeInTheDocument()
+  expect(await screen.findByText(/Diese Referenz ist dauerhaft gespeichert/)).toBeInTheDocument()
 })
 
 test('reports the three image-space corridors with their status', async () => {
@@ -363,27 +369,24 @@ test('reports the three image-space corridors with their status', async () => {
   expect(screen.getByText('Korridore und Trajektorie')).toBeInTheDocument()
   expect(screen.getByText('FREI')).toBeInTheDocument()
   expect(screen.getByText('UNSICHER')).toBeInTheDocument()
-  // Der Vorfilter aus A.4 wird sichtbar gemacht, nicht stillschweigend angewendet.
-  expect(screen.getByText(/oberhalb des Fluchtpunkts werden nicht ausgewertet/)).toBeInTheDocument()
-  expect(screen.getByText(/aus 79 Wegrandzeilen gefittet/)).toBeInTheDocument()
+  expect(screen.getByText('Ausgewertetes Nahfeld')).toBeInTheDocument()
+  expect(screen.getByText(/Nur das untere sichtbare Nahfeld wird auf Fahrzeugbreite geprüft/)).toBeInTheDocument()
 })
 
-test('draws the corridor geometry and the vanishing point over the video', async () => {
+test('shows no corridor until one is explicitly selected', async () => {
   const {container} = render(<GlobalModelDashboard onClose={() => undefined} />)
   await screen.findByText('BLOCKIERT')
 
+  expect(container.querySelector('.corridor-overlay')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('Mitte'))
   const overlay = container.querySelector('.corridor-overlay')!
   expect(overlay).toBeInTheDocument()
-  // Drei Korridore als Flaechen, dazu Fluchtpunkt und Irrelevanz-Zone.
-  expect(overlay.querySelectorAll('.corridor-wedge')).toHaveLength(3)
-  expect(overlay.querySelector('.corridor-vanishing')).toBeInTheDocument()
-  expect(overlay.querySelector('.corridor-irrelevant')).toBeInTheDocument()
+  expect(overlay.querySelectorAll('.corridor-wedge')).toHaveLength(1)
   expect(overlay.querySelector('.corridor-proposal')).toBeInTheDocument()
-  // Mitte ist vorgeschlagen und deshalb hervorgehoben.
   expect(overlay.querySelector('.corridor-wedge.free.active')).toBeInTheDocument()
 })
 
-test('selecting another corridor moves the highlight', async () => {
+test('selecting another corridor replaces the visible corridor', async () => {
   const {container} = render(<GlobalModelDashboard onClose={() => undefined} />)
   await screen.findByText('BLOCKIERT')
 
@@ -391,6 +394,7 @@ test('selecting another corridor moves the highlight', async () => {
 
   expect(container.querySelector('.corridor-wedge.uncertain.active')).toBeInTheDocument()
   expect(container.querySelector('.corridor-wedge.free.active')).not.toBeInTheDocument()
+  expect(container.querySelectorAll('.corridor-wedge')).toHaveLength(1)
 })
 
 test('adopting the proposal yields draggable handles that can be saved', async () => {
@@ -398,6 +402,7 @@ test('adopting the proposal yields draggable handles that can be saved', async (
   await screen.findByText('BLOCKIERT')
   expect(container.querySelector('.corridor-draft')).not.toBeInTheDocument()
 
+  fireEvent.click(screen.getByText('Mitte'))
   fireEvent.click(screen.getByRole('button', {name: 'Vorschlag übernehmen'}))
 
   expect(container.querySelector('.corridor-draft')).toBeInTheDocument()
@@ -407,8 +412,8 @@ test('adopting the proposal yields draggable handles that can be saved', async (
   expect(screen.getByText(/wird als „unverändert vom Modell" gespeichert/)).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', {name: 'Trajektorie speichern'}))
-  await waitFor(() => expect(saveTrajectory).toHaveBeenCalled())
-  const payload = (saveTrajectory.mock.calls[0] as unknown[])[3] as {origin: string; corridor: string; points: number[][]}
+  await waitFor(() => expect(createTrajectory).toHaveBeenCalled())
+  const payload = (createTrajectory.mock.calls[0] as unknown[])[3] as {origin: string; corridor: string; points: number[][]}
   expect(payload).toMatchObject({origin: 'model_proposal', corridor: 'mitte'})
   expect(payload.points).toHaveLength(3)
 })

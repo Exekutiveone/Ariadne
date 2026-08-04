@@ -150,6 +150,7 @@ export type GroundTruthPolygon = {
   origin?: 'manual' | 'model_proposal' | 'manual_corrected' | 'human_confirmed'
   hard_negative?: boolean
   note?: string
+  uncertainty_reason?: string
   /** Zeitliche Verkettung: dieselbe Stelle über mehrere Frames. */
   tracking_id?: string | null
   carried_from_frame?: number | null
@@ -162,6 +163,7 @@ export type RoiProfile = {
   bottom_ignore_fraction: number | null
   roi: GroundTruthPolygon[]
   note: string
+  uncertainty_reason?: string
   revision: number
   suggested?: {top_ignore_fraction: number; bottom_ignore_fraction: number}
   applies_as: string
@@ -475,6 +477,7 @@ export type ProposedTrajectory = {
   note: string
 }
 export type StoredTrajectory = {
+  id: string
   schema_version: string
   mission_id: string
   video_id: string
@@ -494,13 +497,13 @@ export type CorridorCheck = {
   schema_version: string
   kind: string
   mask_size: {width: number; height: number}
-  decomposition: {
-    vanishing_point: {x: number; y: number; source: string; rows_used: number; residual_px: number | null}
-    relevant_triangle: number[][]
-    irrelevant_zone: {kind: string; first_evaluated_row: number; rows_skipped: number; image_fraction_skipped: number; reason: string}
+  region: {
+    kind: string
+    first_evaluated_row: number
+    rows_skipped: number
+    image_fraction_skipped: number
+    reason: string
     evaluated_rows: number
-    vanishing_point_normalized: number[]
-    relevant_triangle_normalized: number[][]
     first_evaluated_row_normalized: number
   }
   proposed_trajectory: ProposedTrajectory | null

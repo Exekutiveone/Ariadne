@@ -1,0 +1,28 @@
+[
+  {
+    "id": "traj-228f29295213",
+    "schema_version": "2.0",
+    "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+    "video_id": "2f2c7f34-5735-42a9-935b-63d9ec4fee0a",
+    "frame_index": 3062,
+    "timestamp_ms": 102107,
+    "points": [
+      [
+        0.314146,
+        0.942529
+      ],
+      [
+        0.469835,
+        0.213465
+      ]
+    ],
+    "corridor": null,
+    "origin": "manual",
+    "note": "",
+    "annotator": "Simon",
+    "coordinate_space": "normalized_to_original_frame",
+    "revision": 1,
+    "created_at": "2026-08-04T19:45:04.671778+00:00",
+    "updated_at": "2026-08-04T19:45:04.671778+00:00"
+  }
+]

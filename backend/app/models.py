@@ -25,13 +25,20 @@ class Pause(BaseModel):
 
 class SurveyPayload(BaseModel):
     name: str = Field(min_length=3, max_length=120)
-    start: Coordinate
-    end: Coordinate
-    route: list[Coordinate] = Field(min_length=2)
+    # Die Georeferenzierung ist bewusst optional. Ariadne kann Videos zuerst
+    # als Labeling-Datensatz erfassen; Karten- und Rekonstruktionsfunktionen
+    # werden erst aktiv, wenn eine Route nachgetragen wurde.
+    start: Coordinate | None = None
+    end: Coordinate | None = None
+    route: list[Coordinate] = Field(default_factory=list)
     movement_start: str | None = None
     movement_end: str | None = None
     pauses: list[Pause] = []
     notes: str = Field(default="", max_length=5000)
+
+
+class ProblemReasonInput(BaseModel):
+    label: str = Field(min_length=1, max_length=80)
 
 
 class VideoMeta(BaseModel):
@@ -129,6 +136,7 @@ class GroundTruthPolygon(BaseModel):
     # Genau die verbessern ein Modell am stärksten, deshalb sind sie auffindbar.
     hard_negative: bool = False
     note: str = Field(default="", max_length=500)
+    uncertainty_reason: str = Field(default="", max_length=120)
     # Zeitliche Verkettung: dieselbe Stelle ueber mehrere Frames hinweg.
     # Bewusst ein Feld am Polygon und kein eigenes Journal — die Angabe reist mit
     # dem Label mit, und das Training liest die Polygone ohnehin. Ein zweites

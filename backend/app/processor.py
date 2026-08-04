@@ -113,7 +113,8 @@ def process(
     videos = []
     keyframes = []
     observations = []
-    unique_length = route_length(mission.route)
+    has_route = len(mission.route) >= 2
+    unique_length = route_length(mission.route) if has_route else 0.0
     for video in mission.videos:
         path = video_path(mission_dir, video.id)
         actual = sha256(path)
@@ -158,8 +159,6 @@ def process(
             score, second, frame = candidate
             progress = min(1, max(0, second / duration))
             route_fraction = progress if video.direction == "A_TO_B" else 1 - progress
-            point = interpolate(mission.route, route_fraction)
-            segment = min(max(0, len(mission.route) - 2), int(route_fraction * max(1, len(mission.route) - 1)))
             frame_id = f"{video.id[:8]}-{seq:03d}"
             output = staging / "frames" / f"{frame_id}.jpg"
             scale = min(1, 1280 / max(frame.shape[:2]))
@@ -172,12 +171,13 @@ def process(
                 "video_name": video.original_name,
                 "timestamp_seconds": round(second, 3),
                 "route_fraction": round(route_fraction, 5),
-                "segment_index": segment,
-                "position": point,
                 "sharpness": round(score, 2),
                 "image_url": f"/api/v1/missions/{mission.id}/analysis/frames/{frame_id}.jpg",
                 "features": features,
             }
+            if has_route:
+                item["position"] = interpolate(mission.route, route_fraction)
+                item["segment_index"] = min(max(0, len(mission.route) - 2), int(route_fraction * max(1, len(mission.route) - 1)))
             keyframes.append(item)
             if features["vegetation_ratio"] >= 0.12:
                 observations.append(

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "kind": "no_path_false_detection",
+  "meaning": "Aufnahme mit grobem Modellfehler; gemeldete Bereiche sollen im naechsten Training besonders beachtet werden",
+  "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+  "video_id": "139bce1e-a0f0-4b70-b57d-7ec4affbcba6",
+  "frame_index": 1072,
+  "timestamp_ms": 35746,
+  "severity": 3,
+  "note": "Schnellreview: Nicht korrekt markiert.",
+  "annotator": "human",
+  "created_at": "2026-08-04T22:16:51.213735+00:00"
+}

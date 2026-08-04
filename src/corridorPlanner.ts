@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {deleteTrajectory, getTrajectory, saveTrajectory} from './api'
+import {createTrajectory, deleteTrajectory, listTrajectories, updateTrajectory} from './api'
 import type {CorridorCheck, NormalizedPoint, StoredTrajectory} from './types'
 
 /** Anzahl Griffe, auf die der KI-Vorschlag zum Bearbeiten eingedampft wird.
@@ -42,6 +42,9 @@ export function useCorridorPlanner(
   const enabled = Boolean(missionId && videoId)
 
   // Gespeicherte Trajektorie des Frames laden; sie hat Vorrang vor dem Vorschlag.
+  // Ein Frame kann mehrere Trajektorien tragen (siehe GroundTruthLabeler); dieses
+  // Bedienfeld verfeinert gezielt EINEN Modellvorschlag und nimmt darum bewusst
+  // nur die erste — fuer freies Mehrfach-Planen ist der Handlabeler da.
   useEffect(() => {
     if (!enabled || !missionId || !videoId) {
       setStored(null)
@@ -49,12 +52,12 @@ export function useCorridorPlanner(
       return
     }
     let cancelled = false
-    void getTrajectory(missionId, videoId, frameIndex)
-      .then(result => {
+    void listTrajectories(missionId, videoId, frameIndex)
+      .then(items => {
         if (cancelled) return
+        const result = items[0] ?? null
         setStored(result)
         setDraft(result ? result.points.map(point => [...point] as NormalizedPoint) : null)
-        if (result?.corridor) setSelected(result.corridor)
       })
       .catch(() => {
         if (!cancelled) {
@@ -67,12 +70,17 @@ export function useCorridorPlanner(
     }
   }, [enabled, missionId, videoId, frameIndex])
 
-  const proposal = check?.proposed_trajectory ?? null
-  const activeCorridor = selected ?? proposal?.corridor ?? 'mitte'
+  const activeCorridor = selected
   const corridorProposal = useMemo(() => {
+    if (!activeCorridor) return []
     const corridor = check?.corridors.find(item => item.corridor === activeCorridor)
-    return corridor?.trajectory.points.length ? corridor.trajectory.points : (proposal?.points ?? [])
-  }, [check, activeCorridor, proposal])
+    return corridor?.trajectory.points.length ? corridor.trajectory.points : []
+  }, [check, activeCorridor])
+
+  const toggleSelected = useCallback((corridor: string) => {
+    setSelected(current => (current === corridor ? null : corridor))
+    setDraft(null)
+  }, [])
 
   const adopt = useCallback(() => {
     if (!corridorProposal.length) {
@@ -114,14 +122,17 @@ export function useCorridorPlanner(
       }
       setSaving(true)
       try {
-        const saved = await saveTrajectory(missionId, videoId, frameIndex, {
+        const payload = {
           timestamp_ms: timestampMs,
           points: draft,
           corridor: activeCorridor as 'mitte' | 'rechts' | 'links',
-          origin: unchangedFromProposal ? 'model_proposal' : 'manual_edit',
+          origin: unchangedFromProposal ? ('model_proposal' as const) : ('manual_edit' as const),
           note,
           annotator: annotator.trim() || 'human',
-        })
+        }
+        const saved = stored
+          ? await updateTrajectory(missionId, videoId, frameIndex, stored.id, payload)
+          : await createTrajectory(missionId, videoId, frameIndex, payload)
         setStored(saved)
         setMessage(
           `Trajektorie für Frame ${frameIndex + 1} gespeichert (Revision ${saved.revision}, ${unchangedFromProposal ? 'unverändert vom Modell' : 'von Hand nachgebessert'}).`,
@@ -132,14 +143,14 @@ export function useCorridorPlanner(
         setSaving(false)
       }
     },
-    [draft, saving, missionId, videoId, frameIndex, timestampMs, activeCorridor, unchangedFromProposal],
+    [draft, saving, missionId, videoId, frameIndex, timestampMs, activeCorridor, unchangedFromProposal, stored],
   )
 
   const discard = useCallback(async () => {
     if (!stored || saving) return
     setSaving(true)
     try {
-      await deleteTrajectory(missionId, videoId, frameIndex)
+      await deleteTrajectory(missionId, videoId, frameIndex, stored.id)
       setStored(null)
       setDraft(null)
       setMessage(`Gespeicherte Trajektorie für Frame ${frameIndex + 1} gelöscht.`)
@@ -159,7 +170,7 @@ export function useCorridorPlanner(
     calibration,
     setCalibration,
     activeCorridor,
-    setSelected,
+    toggleSelected,
     corridorProposal,
     unchangedFromProposal,
     adopt,

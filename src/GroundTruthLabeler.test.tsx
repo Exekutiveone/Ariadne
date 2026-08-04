@@ -6,6 +6,8 @@ const updateVideoTerrainCategory = vi.hoisted(() =>
 )
 
 vi.mock('./api', () => ({
+  getProblemReasons: async () => ({items: []}),
+  createProblemReason: async () => ({value: 'custom_test', label: 'Test', uses: 0}),
   getLabelOntology: async () => ({
     schema_version: '3.0',
     unlabelled: {key: 'unlabelled', value: 0, label: 'Nicht markiert', color: '#00000000'},
@@ -62,8 +64,9 @@ vi.mock('./api', () => ({
     applies_as: 'suggestion_only_frame_labels_decide',
   }),
   saveRoiProfile: vi.fn(),
-  getTrajectory: async () => null,
-  saveTrajectory: vi.fn(),
+  listTrajectories: async () => [],
+  createTrajectory: vi.fn(),
+  updateTrajectory: vi.fn(),
   deleteTrajectory: vi.fn(),
   getLabelingVideos: async () => ({
     mission_id: 'mission-1',
@@ -240,10 +243,10 @@ test('offers every ontology layer and keeps obstacles apart from the core classe
 
   // Vier Ebenen, jede mit eigener Ueberschrift — Hindernisse ersetzen keine
   // Kernklasse, sie erklaeren sie.
-  expect(screen.getByText(/Untergrund — genau eine je Fläche/)).toBeInTheDocument()
-  expect(screen.getByText(/Hindernis — erklärt, warum etwas nicht fahrbar ist/)).toBeInTheDocument()
-  expect(screen.getByText(/Problemzone — macht eine Fläche unsicher/)).toBeInTheDocument()
-  expect(screen.getByText(/Auswertungsbereich — schneidet nichts weg/)).toBeInTheDocument()
+  expect(screen.getByText(/Bodenfläche — befahrbar, eingeschränkt, nicht befahrbar oder nicht bewertbar/)).toBeInTheDocument()
+  expect(screen.getByText('Hindernisse')).toBeInTheDocument()
+  expect(screen.getAllByText('Sicherheits- und Problemzonen').length).toBeGreaterThan(0)
+  expect(screen.getByText('ROI-Polygon für diesen Frame')).toBeInTheDocument()
   expect(screen.getByRole('button', {name: 'Baum'})).toBeInTheDocument()
   expect(screen.getByRole('button', {name: 'Nicht interessiert / ignorieren'})).toBeInTheDocument()
 })
@@ -271,10 +274,10 @@ test('drawing a trajectory by hand needs no model and no proposal', async () => 
   )
   await screen.findByRole('button', {name: 'Befahrbarer Boden'})
 
-  expect(screen.getByText('Trajektorie von Hand')).toBeInTheDocument()
+  expect(screen.getByText('Trajektorien von Hand')).toBeInTheDocument()
   expect(screen.getByText(/Braucht kein trainiertes Modell/)).toBeInTheDocument()
   // Ohne Punkte ist Speichern gesperrt: eine Bahn braucht mindestens zwei.
-  expect(screen.getByRole('button', {name: 'Trajektorie speichern'})).toBeDisabled()
+  expect(screen.getByRole('button', {name: 'Linie speichern'})).toBeDisabled()
   expect(screen.getByText('0 Bahnpunkte')).toBeInTheDocument()
-  expect(screen.getByText('Für diesen Frame ist nichts gespeichert.')).toBeInTheDocument()
+  expect(screen.getByText('Keine Linie in Arbeit')).toBeInTheDocument()
 })

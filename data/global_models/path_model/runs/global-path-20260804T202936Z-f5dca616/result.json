@@ -1,0 +1,186 @@
+{
+  "schema_version": "1.0",
+  "scope": "global_cross_mission",
+  "run_id": "global-path-20260804T202936Z-f5dca616",
+  "created_at": "2026-08-04T20:29:36.498730+00:00",
+  "model": {
+    "id": "ariadne-cpu-path-rff",
+    "type": "random_fourier_kernel_ridge_pixel_classifier",
+    "hardware": "CPU",
+    "cloud_used": false,
+    "input_width": 160,
+    "feature_count": 22,
+    "random_features": 64,
+    "threshold": 0.006149
+  },
+  "dataset": {
+    "missions": [
+      {
+        "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+        "name": "Misson 3",
+        "confirmed_frames": 18,
+        "train_frames": 16,
+        "validation_frames": 2,
+        "hard_negative_records": 0
+      },
+      {
+        "mission_id": "56c08f8c-8dc6-4c83-9596-de2b90fb9730",
+        "name": "Misson  2",
+        "confirmed_frames": 99,
+        "train_frames": 80,
+        "validation_frames": 19,
+        "hard_negative_records": 0
+      },
+      {
+        "mission_id": "1c752696-6de5-4411-840c-3e92ae014333",
+        "name": "Mission 1",
+        "confirmed_frames": 152,
+        "train_frames": 123,
+        "validation_frames": 29,
+        "hard_negative_records": 0
+      }
+    ],
+    "confirmed_frames": 269,
+    "videos": 6,
+    "refinements_included": 20,
+    "critical_flags_included": 11,
+    "hard_negative_records_included": 0
+  },
+  "split": {
+    "strategy": "per_mission_per_video_frame_split",
+    "train_frames": 219,
+    "validation_frames": 50,
+    "training_pixels_sampled": 190780,
+    "same_frame_in_train_and_validation": false
+  },
+  "scoring": {
+    "rule": "50 percent missed labeled path plus 50 percent invented path",
+    "threshold_selection": {
+      "tp": 708939,
+      "tn": 1092470,
+      "fp": 144606,
+      "fn": 46625,
+      "missed_label_fraction": 0.06171,
+      "invented_path_fraction": 0.11689,
+      "symmetric_penalty_points": 8.93,
+      "symmetric_score": 91.07,
+      "iou": 0.78756,
+      "dice": 0.88116,
+      "precision": 0.83058,
+      "recall": 0.93829
+    }
+  },
+  "train_metrics": {
+    "tp": 3231756,
+    "tn": 4725147,
+    "fp": 604937,
+    "fn": 210000,
+    "missed_label_fraction": 0.06102,
+    "invented_path_fraction": 0.11349,
+    "symmetric_penalty_points": 8.73,
+    "symmetric_score": 91.27,
+    "iou": 0.79862,
+    "dice": 0.88803,
+    "precision": 0.84233,
+    "recall": 0.93898
+  },
+  "validation_metrics": {
+    "tp": 708939,
+    "tn": 1092470,
+    "fp": 144606,
+    "fn": 46625,
+    "missed_label_fraction": 0.06171,
+    "invented_path_fraction": 0.11689,
+    "symmetric_penalty_points": 8.93,
+    "symmetric_score": 91.07,
+    "iou": 0.78756,
+    "dice": 0.88116,
+    "precision": 0.83058,
+    "recall": 0.93829
+  },
+  "evidence": [
+    {
+      "kind": "best",
+      "video_id": "dcdd9bf1-1731-4d80-baf2-ab9e3b5153f1",
+      "frame_index": 2643,
+      "timestamp_ms": 88135,
+      "metrics": {
+        "tp": 21017,
+        "tn": 23745,
+        "fp": 408,
+        "fn": 270,
+        "missed_label_fraction": 0.01268,
+        "invented_path_fraction": 0.01689,
+        "symmetric_penalty_points": 1.48,
+        "symmetric_score": 98.52,
+        "iou": 0.96875,
+        "dice": 0.98413,
+        "precision": 0.98096,
+        "recall": 0.98732
+      },
+      "image_url": "/api/v1/path-model/global/evidence/best-dcdd9bf1-0002643.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    },
+    {
+      "kind": "median",
+      "video_id": "865b5ff9-97e4-4e98-ba4d-79e30f93d606",
+      "frame_index": 250,
+      "timestamp_ms": 8337,
+      "metrics": {
+        "tp": 1636,
+        "tn": 10999,
+        "fp": 1765,
+        "fn": 0,
+        "missed_label_fraction": 0.0,
+        "invented_path_fraction": 0.13828,
+        "symmetric_penalty_points": 6.91,
+        "symmetric_score": 93.09,
+        "iou": 0.48103,
+        "dice": 0.64959,
+        "precision": 0.48103,
+        "recall": 1.0
+      },
+      "image_url": "/api/v1/path-model/global/evidence/median-865b5ff9-0000250.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    },
+    {
+      "kind": "worst",
+      "video_id": "66ae6f3a-97e2-4967-bfc8-e2a354a5333b",
+      "frame_index": 40,
+      "timestamp_ms": 1334,
+      "metrics": {
+        "tp": 16904,
+        "tn": 19117,
+        "fp": 724,
+        "fn": 8695,
+        "missed_label_fraction": 0.33966,
+        "invented_path_fraction": 0.03649,
+        "symmetric_penalty_points": 18.81,
+        "symmetric_score": 81.19,
+        "iou": 0.64218,
+        "dice": 0.7821,
+        "precision": 0.95893,
+        "recall": 0.66034
+      },
+      "image_url": "/api/v1/path-model/global/evidence/worst-66ae6f3a-0000040.jpg",
+      "legend": {
+        "green": "correct_path",
+        "red": "missed_label",
+        "yellow": "invented_path"
+      }
+    }
+  ],
+  "runtime_seconds": 34.573,
+  "limitations": [
+    "Cross-mission CPU baseline; more diverse missions improve generalization.",
+    "This is not a safety-relevant driving approval."
+  ]
+}

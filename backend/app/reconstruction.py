@@ -153,6 +153,8 @@ def _to_geo(local, start, end):
 
 
 def reconstruct(mission: MissionRecord, mission_dir: Path) -> dict[str, Any]:
+    if mission.start is None or mission.end is None or len(mission.route) < 2:
+        raise ValueError("Diese Mission hat keine Georeferenzierung. Video- und Labeling-Workflows bleiben nutzbar; für eine Kartenrekonstruktion bitte Route nachtragen.")
     started = time.perf_counter()
     target = haversine(mission.start, mission.end)
     traversals = []

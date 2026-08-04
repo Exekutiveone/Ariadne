@@ -2,17 +2,20 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, PointerEvent as ReactPointerEvent} from 'react'
 import {
   createOffPathInterval,
+  createProblemReason,
+  createTrajectory,
   deleteCriticalFlag,
   deleteOffPathInterval,
   deleteTrajectory,
   getGroundTruth,
+  getProblemReasons,
   getRoiProfile,
-  getTrajectory,
   listCriticalFlags,
   listOffPathIntervals,
+  listTrajectories,
   saveCriticalFlag,
   saveRoiProfile,
-  saveTrajectory,
+  updateTrajectory,
   getLabelingVideos,
   getPathModel,
   getPathTrainingJob,
@@ -207,6 +210,7 @@ export default function GroundTruthLabeler({
   const [trainingHours, setTrainingHours] = useState(8)
   const [trainingJob, setTrainingJob] = useState<PathTrainingJob | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [intervalPlaying, setIntervalPlaying] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [refinementMode, setRefinementMode] = useState(false)
   const [refinementSelection, setRefinementSelection] = useState<{point: NormalizedPoint; kind: 'missed_label' | 'invented_path'} | null>(
@@ -231,13 +235,42 @@ export default function GroundTruthLabeler({
   const [shapeCertainty, setShapeCertainty] = useState<LabelShape['certainty']>('certain')
   const [shapeHardNegative, setShapeHardNegative] = useState(false)
   const [shapeNote, setShapeNote] = useState('')
+  const [shapeUncertaintyReason, setShapeUncertaintyReason] = useState('')
+  const [problemReasons, setProblemReasons] = useState<{value: string; label: string; uses: number}[]>([])
+  const [newProblemReason, setNewProblemReason] = useState('')
+  const [problemReasonSaving, setProblemReasonSaving] = useState(false)
   const [editingShapeId, setEditingShapeId] = useState<string | null>(null)
-  // Trajektorie von Hand: braucht kein Modell und keinen Vorschlag.
+  // Trajektorien von Hand: braucht kein Modell und keinen Vorschlag. Beliebig
+  // viele je Frame moeglich (z. B. mehrere sinnvolle Wege durch eine Engstelle) -
+  // trajectories haelt die gespeicherten Linien, trajectory die gerade
+  // gezeichnete oder zum Nachbessern herausgeholte. editingTrajectoryId
+  // unterscheidet "neue Linie" von "bestehende wird bearbeitet", genau wie
+  // editingShapeId bei den Flaechen.
+  const [trajectories, setTrajectories] = useState<StoredTrajectory[]>([])
   const [trajectory, setTrajectory] = useState<NormalizedPoint[]>([])
-  const [storedTrajectory, setStoredTrajectory] = useState<StoredTrajectory | null>(null)
+  const [editingTrajectoryId, setEditingTrajectoryId] = useState<string | null>(null)
   const [trajectoryMode, setTrajectoryMode] = useState(false)
   const [trajectorySaving, setTrajectorySaving] = useState(false)
   const {classesOf, describe, error: ontologyError} = useLabelOntology()
+
+  useEffect(() => {
+    void getProblemReasons().then(result => setProblemReasons(result.items)).catch(() => undefined)
+  }, [])
+
+  const addProblemReason = async () => {
+    if (!newProblemReason.trim() || problemReasonSaving) return
+    setProblemReasonSaving(true)
+    try {
+      const created = await createProblemReason(newProblemReason)
+      setProblemReasons(current => [...current.filter(item => item.value !== created.value), created].sort((a, b) => b.uses - a.uses || a.label.localeCompare(b.label)))
+      setShapeUncertaintyReason(created.value)
+      setNewProblemReason('')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Grund konnte nicht erstellt werden')
+    } finally {
+      setProblemReasonSaving(false)
+    }
+  }
   const [roiProfile, setRoiProfile] = useState<RoiProfile | null>(null)
   const [roiTop, setRoiTop] = useState(0)
   const [roiBottom, setRoiBottom] = useState(0)
@@ -387,21 +420,23 @@ export default function GroundTruthLabeler({
     setRefinementSelection(null)
   }, [activeVideo?.video_id, frameIndex])
 
-  // Trajektorie des Frames laden. Sie haengt nicht am Modell — hier wird von
+  // Trajektorien des Frames laden. Sie haengen nicht am Modell — hier wird von
   // Hand gezeichnet, im Modellzentrum zusaetzlich ein Vorschlag angeboten.
   useEffect(() => {
     if (!activeVideo) return
     let cancelled = false
-    void getTrajectory(mission.id, activeVideo.video_id, frameIndex)
+    void listTrajectories(mission.id, activeVideo.video_id, frameIndex)
       .then(result => {
         if (cancelled) return
-        setStoredTrajectory(result)
-        setTrajectory(result ? (result.points.map(point => [...point]) as NormalizedPoint[]) : [])
+        setTrajectories(result)
+        setTrajectory([])
+        setEditingTrajectoryId(null)
       })
       .catch(() => {
         if (!cancelled) {
-          setStoredTrajectory(null)
+          setTrajectories([])
           setTrajectory([])
+          setEditingTrajectoryId(null)
         }
       })
     return () => {
@@ -616,6 +651,10 @@ export default function GroundTruthLabeler({
     }
   }
 
+  /** Aktive Linie speichern: neu anlegen oder eine bestehende aktualisieren,
+   *  je nachdem ob sie ueber editTrajectory hereingeholt wurde. Anschliessend
+   *  sind die Werkzeuge frei fuer die naechste Linie — derselbe Ablauf wie
+   *  commitShape bei den Flaechen. */
   const persistTrajectory = async () => {
     if (!activeVideo || trajectorySaving) return
     if (trajectory.length < 2) {
@@ -624,16 +663,23 @@ export default function GroundTruthLabeler({
     }
     setTrajectorySaving(true)
     try {
-      const saved = await saveTrajectory(mission.id, activeVideo.video_id, frameIndex, {
+      const payload = {
         timestamp_ms: timestampMs,
         points: trajectory,
         corridor: null,
-        origin: 'manual',
+        origin: editingTrajectoryId ? ('manual_edit' as const) : ('manual' as const),
         note: '',
         annotator: annotator.trim() || 'Simon',
-      })
-      setStoredTrajectory(saved)
-      setMessage(`Trajektorie für Frame ${frameIndex + 1} gespeichert (Revision ${saved.revision}, von Hand gezeichnet).`)
+      }
+      const saved = editingTrajectoryId
+        ? await updateTrajectory(mission.id, activeVideo.video_id, frameIndex, editingTrajectoryId, payload)
+        : await createTrajectory(mission.id, activeVideo.video_id, frameIndex, payload)
+      setTrajectories(current => [...current.filter(item => item.id !== saved.id), saved])
+      setTrajectory([])
+      setEditingTrajectoryId(null)
+      setMessage(
+        `Trajektorie für Frame ${frameIndex + 1} gespeichert (Revision ${saved.revision}, ${editingTrajectoryId ? 'nachgebessert' : 'von Hand gezeichnet'}).`,
+      )
     } catch (problem) {
       setMessage(problem instanceof Error ? problem.message : 'Trajektorie konnte nicht gespeichert werden')
     } finally {
@@ -641,13 +687,35 @@ export default function GroundTruthLabeler({
     }
   }
 
-  const discardTrajectory = async () => {
+  /** Aktive Linie verwerfen — nichts wird auf dem Server geloescht. War es eine
+   *  bestehende Linie, bleibt sie unter ihrer id in trajectories und taucht
+   *  automatisch wieder unter den gespeicherten Linien auf, sobald
+   *  editingTrajectoryId zurueckgesetzt ist. */
+  const discardActiveTrajectory = () => {
+    setMessage(editingTrajectoryId ? 'Änderung verworfen — die gespeicherte Linie bleibt unverändert.' : 'Neue Linie verworfen.')
+    setTrajectory([])
+    setEditingTrajectoryId(null)
+  }
+
+  /** Eine gespeicherte Linie zum Nachbessern in die Werkzeuge holen. */
+  const editTrajectory = (item: StoredTrajectory) => {
+    if (trajectory.length > 0 && !editingTrajectoryId) {
+      setMessage('Übernimm oder verwirf zuerst die aktuelle neue Linie.')
+      return
+    }
+    setTrajectory(item.points.map(point => [...point]) as NormalizedPoint[])
+    setEditingTrajectoryId(item.id)
+    setTrajectoryMode(true)
+    setMessage('Trajektorie geladen — Punkte ziehen, um sie zu verbessern.')
+  }
+
+  /** Eine gespeicherte, gerade NICHT aktiv bearbeitete Linie endgueltig loeschen. */
+  const removeTrajectory = async (item: StoredTrajectory) => {
     if (!activeVideo || trajectorySaving) return
     setTrajectorySaving(true)
     try {
-      if (storedTrajectory) await deleteTrajectory(mission.id, activeVideo.video_id, frameIndex)
-      setStoredTrajectory(null)
-      setTrajectory([])
+      await deleteTrajectory(mission.id, activeVideo.video_id, frameIndex, item.id)
+      setTrajectories(current => current.filter(entry => entry.id !== item.id))
       setMessage(`Trajektorie für Frame ${frameIndex + 1} entfernt.`)
     } catch (problem) {
       setMessage(problem instanceof Error ? problem.message : 'Trajektorie konnte nicht gelöscht werden')
@@ -723,6 +791,7 @@ export default function GroundTruthLabeler({
           origin: item.origin ?? 'manual',
           hard_negative: item.hard_negative ?? false,
           note: item.note ?? '',
+          uncertainty_reason: item.uncertainty_reason ?? '',
           tracking_id: item.tracking_id ?? null,
           carried_from_frame: item.carried_from_frame ?? null,
           edit: item.edit ?? 'new',
@@ -734,6 +803,7 @@ export default function GroundTruthLabeler({
           carriedOriginRef.current = null
         }
         setShapeNote('')
+        setShapeUncertaintyReason('')
         setShapeHardNegative(false)
         const polygon = stored.length === 1 ? stored[0].points : undefined
         const carriedIntoCurrentFrame = !annotation && carried?.videoId === activeVideo.video_id && carried.frameIndex === frameIndex
@@ -744,6 +814,7 @@ export default function GroundTruthLabeler({
           setShapeCertainty(stored[0].certainty)
           setShapeHardNegative(stored[0].hard_negative)
           setShapeNote(stored[0].note)
+          setShapeUncertaintyReason(stored[0].uncertainty_reason ?? '')
           setEditingShapeId(stored[0].id)
           setPoints(copyPoints(polygon))
           setTool('edit')
@@ -1100,6 +1171,7 @@ export default function GroundTruthLabeler({
       origin: 'manual',
       hard_negative: shapeHardNegative,
       note: shapeNote,
+      uncertainty_reason: shapeUncertaintyReason,
       tracking_id: ensureTrackingId(),
       carried_from_frame: carried?.fromFrame ?? null,
       // Unveraendert uebernommen oder nachgezogen? Genau die Stellen, an denen
@@ -1119,6 +1191,7 @@ export default function GroundTruthLabeler({
     setPoints([])
     setEditingShapeId(null)
     setShapeNote('')
+    setShapeUncertaintyReason('')
     setShapeHardNegative(false)
     trackingIdRef.current = null
     carriedOriginRef.current = null
@@ -1139,6 +1212,7 @@ export default function GroundTruthLabeler({
     setShapeCertainty(shape.certainty)
     setShapeHardNegative(shape.hard_negative)
     setShapeNote(shape.note)
+    setShapeUncertaintyReason(shape.uncertainty_reason ?? '')
     setEditingShapeId(shape.id)
     trackingIdRef.current = shape.tracking_id ?? null
     // Eine erneut geoeffnete, bereits gespeicherte Flaeche gilt als korrigiert,
@@ -1470,6 +1544,12 @@ export default function GroundTruthLabeler({
       String(item.frame_index + 1).includes(needle)
     )
   })
+  // Die gerade bearbeitete Linie hat genau eine Darstellung — die aktive
+  // Arbeitslinie selbst. Sie hier auszuschliessen verhindert, dass sie
+  // zugleich als "andere gespeicherte Linie" mit eigenen Bearbeiten/Entfernen-
+  // Knoepfen auftaucht, was ein Entfernen des Servers waehrend einer laufenden
+  // Bearbeitung erlauben wuerde, ohne dass der Nutzer das beabsichtigt.
+  const otherTrajectories = trajectories.filter(item => item.id !== editingTrajectoryId)
 
   return (
     <div className="labeling-page">
@@ -1495,12 +1575,21 @@ export default function GroundTruthLabeler({
           <div className="labeling-viewport-toolbar">
             <div>
               <button
-                className={isPlaying ? 'play-button active' : 'play-button'}
-                disabled={dirty || selectedFrames.length < 2}
-                onClick={() => setIsPlaying(current => !current)}
-                aria-label={isPlaying ? 'Gelabelte Frames pausieren' : 'Gelabelte Frames abspielen'}
+                className={(intervalMode ? intervalPlaying : isPlaying) ? 'play-button active' : 'play-button'}
+                disabled={dirty || (!intervalMode && selectedFrames.length < 2)}
+                onClick={() => {
+                  if (intervalMode) {
+                    const video = videoRef.current
+                    if (!video) return
+                    if (video.paused) void video.play()
+                    else video.pause()
+                    return
+                  }
+                  setIsPlaying(current => !current)
+                }}
+                aria-label={intervalMode ? (intervalPlaying ? 'Video pausieren' : 'Video abspielen') : isPlaying ? 'Gelabelte Frames pausieren' : 'Gelabelte Frames abspielen'}
               >
-                {isPlaying ? '❚❚ Pause' : '▶ Gelabelte Frames abspielen'}
+                {intervalMode ? (intervalPlaying ? '❚❚ Video pausieren' : '▶ Video abspielen') : isPlaying ? '❚❚ Pause' : '▶ Gelabelte Frames abspielen'}
               </button>
               <label className="playback-speed-control">
                 Tempo
@@ -1532,8 +1621,8 @@ export default function GroundTruthLabeler({
             </div>
             <span>
               {intervalMode
-                ? 'Video frei scrubbar · Start und Ende eines wegfreien Abschnitts markieren'
-                : 'Mausrad zoomt · Hand verschiebt das Bild'}
+                ? 'Intervallmodus: direkt Video abspielen oder scrubben, dann Start und Ende setzen'
+                : `Auswahlabstand: ${selectionMode === 'stride' ? `jeder ${stride}. Originalframe` : `${selectedFrames.length} gleichmäßig verteilte Frames`} · Tempo ${playbackSpeed}×: ${Math.round(900 / playbackSpeed)} ms je Auswahlframe · Mausrad zoomt`}
             </span>
           </div>
           {activeCriticalFlag && (
@@ -1555,6 +1644,8 @@ export default function GroundTruthLabeler({
                   muted
                   playsInline
                   controls={intervalMode}
+                  onPlay={() => setIntervalPlaying(true)}
+                  onPause={() => setIntervalPlaying(false)}
                   onTimeUpdate={event => {
                     if (intervalMode) setScrubMs(Math.round(event.currentTarget.currentTime * 1000))
                   }}
@@ -1594,7 +1685,25 @@ export default function GroundTruthLabeler({
                       style={{fillOpacity: maskOpacity, fill: describe(shapeClass).color, stroke: describe(shapeClass).color}}
                     />
                   )}
-                  {/* Von Hand gezeichnete Trajektorie. */}
+                  {/* Gespeicherte Trajektorien ausser der gerade bearbeiteten: gedimmt,
+                      Klick holt sie zum Nachbessern in die Werkzeuge. */}
+                  {otherTrajectories.map(item => (
+                    <polyline
+                      key={item.id}
+                      points={item.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                      className="manual-trajectory manual-trajectory-stored"
+                      vectorEffect="non-scaling-stroke"
+                      onClick={event => {
+                        event.stopPropagation()
+                        editTrajectory(item)
+                      }}
+                    >
+                      <title>
+                        {`Trajektorie (${item.origin === 'manual' ? 'von Hand' : item.origin === 'manual_edit' ? 'nachgebessert' : 'Modellvorschlag'}) — zum Bearbeiten anklicken`}
+                      </title>
+                    </polyline>
+                  ))}
+                  {/* Von Hand gezeichnete oder herausgeholte Trajektorie: die aktive Arbeitslinie. */}
                   {trajectory.length > 1 && (
                     <polyline
                       points={trajectory.map(([x, y]) => `${x},${y}`).join(' ')}
@@ -1749,7 +1858,13 @@ export default function GroundTruthLabeler({
         </section>
 
         <aside className="labeling-controls">
-          <h2>Frame-Auswahl</h2>
+          <h2>Labeling-Dashboard</h2>
+          <details className="labeling-tool-section" open>
+            <summary>
+              <span>Globale Einstellungen</span>
+              <small>Video, Terrain und Frame-Auswahl</small>
+            </summary>
+            <div className="labeling-tool-content">
           <label>
             Originalvideo
             <select
@@ -1968,9 +2083,15 @@ export default function GroundTruthLabeler({
               {resolvedInSelection} / {selectedFrames.length} bestätigt ({Math.round(progressFraction * 100)} %)
             </small>
           </div>
+            </div>
+          </details>
 
-          <hr />
-          <h2>Polygon bearbeiten</h2>
+          <details className="labeling-tool-section" open>
+            <summary>
+              <span>Labeling-Werkzeuge</span>
+              <small>Anzeige, KI-Maske und Vergleich</small>
+            </summary>
+            <div className="labeling-tool-content">
           <label>
             Masken-Deckkraft · {Math.round(maskOpacity * 100)} %
             <input
@@ -2069,17 +2190,25 @@ export default function GroundTruthLabeler({
               </div>
             )}
           </div>
+            </div>
+          </details>
+          <details className="labeling-tool-section" open>
+            <summary>
+              <span>Flächenklassifizierung</span>
+              <small>Boden, Hindernisse und harte Negativbeispiele</small>
+            </summary>
+            <div className="labeling-tool-content">
           <div className="label-class-panel">
-            <h2>Klasse der Fläche</h2>
+            <h2>Flächenklassifizierung</h2>
             {ontologyError && <small className="terrain-hint">{ontologyError} — es stehen nur die vier Kernklassen zur Wahl.</small>}
             {(['core', 'obstacle', 'zone', 'roi'] as const).map(layer => {
               const classes = classesOf(layer)
               if (!classes.length) return null
               const titles: Record<string, string> = {
-                core: 'Untergrund — genau eine je Fläche',
-                obstacle: 'Hindernis — erklärt, warum etwas nicht fahrbar ist',
-                zone: 'Problemzone — macht eine Fläche unsicher',
-                roi: 'Auswertungsbereich — schneidet nichts weg',
+                core: 'Bodenfläche — befahrbar, eingeschränkt, nicht befahrbar oder nicht bewertbar',
+                obstacle: 'Hindernisse',
+                zone: 'Sicherheits- und Problemzonen',
+                roi: 'ROI-Polygon für diesen Frame',
               }
               return (
                 <div key={layer} className="label-class-group">
@@ -2116,14 +2245,37 @@ export default function GroundTruthLabeler({
                 <option value="partially_occluded">Teilweise verdeckt</option>
               </select>
             </label>
-            <label className="hard-negative-toggle">
-              <input type="checkbox" checked={shapeHardNegative} onChange={event => setShapeHardNegative(event.target.checked)} />
-              <span>Hartes Negativbeispiel</span>
+            <label>
+              Grund für Unsicherheit
+              <input
+                aria-label="Grund für Unsicherheit"
+                list="problem-reason-options"
+                value={problemReasons.find(reason => reason.value === shapeUncertaintyReason)?.label ?? shapeUncertaintyReason}
+                disabled={shapeClass !== 'restricted' && shapeCertainty === 'certain'}
+                onChange={event => setShapeUncertaintyReason(problemReasons.find(reason => reason.label === event.target.value)?.value ?? event.target.value)}
+                placeholder="Suchen oder auswählen …"
+              />
+              <datalist id="problem-reason-options">
+                {problemReasons.map(reason => <option key={reason.value} value={reason.label}>{reason.uses ? `Häufig verwendet (${reason.uses}×)` : 'Verfügbar'}</option>)}
+              </datalist>
             </label>
-            <small>
-              Für Flächen, die aussehen wie das Gegenteil dessen, was sie sind — Schatten, der wie ein Hindernis wirkt, Lichtfleck, der wie
-              freie Fläche aussieht.
-            </small>
+            <div className="problem-reason-create">
+              <input value={newProblemReason} maxLength={80} placeholder="Neuen Grund anlegen …" onChange={event => setNewProblemReason(event.target.value)} />
+              <button disabled={!newProblemReason.trim() || problemReasonSaving} onClick={() => void addProblemReason()}>
+                {problemReasonSaving ? 'WIRD ANGELEGT …' : 'Grund hinzufügen'}
+              </button>
+            </div>
+            <div className="label-class-group hard-negative-group">
+              <small>Harte Negativbeispiele</small>
+              <label className="hard-negative-toggle">
+                <input type="checkbox" checked={shapeHardNegative} onChange={event => setShapeHardNegative(event.target.checked)} />
+                <span>Diese Fläche ist ein hartes Negativbeispiel</span>
+              </label>
+              <small>
+                Für Flächen, die aussehen wie das Gegenteil dessen, was sie sind — Schatten, der wie ein Hindernis wirkt, Lichtfleck, der wie
+                freie Fläche aussieht.
+              </small>
+            </div>
             <label>
               Notiz zur Fläche
               <input value={shapeNote} maxLength={500} placeholder="Optional" onChange={event => setShapeNote(event.target.value)} />
@@ -2152,9 +2304,17 @@ export default function GroundTruthLabeler({
               </div>
             )}
           </div>
+            </div>
+          </details>
 
+          <details className="labeling-tool-section">
+            <summary>
+              <span>ROI-Bereich</span>
+              <small>Auswertungsbereich und Ignorierzonen</small>
+            </summary>
+            <div className="labeling-tool-content">
           <div className="roi-profile-panel">
-            <h2>Auswertungsbereich</h2>
+            <h2>Separater ROI-Bereich</h2>
             <small>
               Schneidet das Bild nicht zu — es sagt nur, welche Pixel im Training zählen. Das Original bleibt vollständig erhalten.
             </small>
@@ -2198,32 +2358,70 @@ export default function GroundTruthLabeler({
                 : 'Für dieses Video ist noch kein Profil gespeichert. Steht die Kamera fest, lohnt es sich: dann gilt derselbe Bereich in jedem Frame.'}
             </small>
           </div>
+            </div>
+          </details>
 
+          <details className="labeling-tool-section">
+            <summary>
+              <span>Trajektorien</span>
+              <small>Optionale Fahrbahnen von Hand</small>
+            </summary>
+            <div className="labeling-tool-content">
           <div className="manual-trajectory-panel">
-            <h2>Trajektorie von Hand</h2>
+            <h2>Trajektorien von Hand</h2>
             <label className="trajectory-toggle">
               <input type="checkbox" checked={trajectoryMode} onChange={event => setTrajectoryMode(event.target.checked)} />
-              <span>Bahn zeichnen: Klick setzt einen Punkt, Rechtsklick entfernt ihn</span>
+              <span>Bahn zeichnen: Klick setzt einen Punkt, Ziehen verschiebt ihn, Rechtsklick entfernt ihn</span>
             </label>
-            <small>Braucht kein trainiertes Modell. Im KI-Modellzentrum gibt es zusätzlich einen Vorschlag zum Nachbessern.</small>
+            <small>
+              Beliebig viele Linien je Frame — etwa mehrere sinnvolle Wege durch eine Engstelle. Braucht kein trainiertes Modell. Im
+              KI-Modellzentrum gibt es zusätzlich einen Vorschlag zum Nachbessern.
+            </small>
             <div className="trajectory-actions">
               <button className="primary" disabled={trajectorySaving || trajectory.length < 2} onClick={() => void persistTrajectory()}>
-                {trajectorySaving ? 'WIRD GESPEICHERT …' : storedTrajectory ? 'Trajektorie aktualisieren' : 'Trajektorie speichern'}
+                {trajectorySaving ? 'WIRD GESPEICHERT …' : editingTrajectoryId ? 'Änderung speichern' : 'Linie speichern'}
               </button>
-              <button disabled={trajectorySaving || (!trajectory.length && !storedTrajectory)} onClick={() => void discardTrajectory()}>
-                Trajektorie löschen
+              <button disabled={trajectorySaving || !trajectory.length} onClick={discardActiveTrajectory}>
+                {editingTrajectoryId ? 'Änderung verwerfen' : 'Linie verwerfen'}
               </button>
             </div>
             <div className="trajectory-state">
               <b>{trajectory.length} Bahnpunkte</b>
               <span>
-                {storedTrajectory
-                  ? `Gespeichert: Revision ${storedTrajectory.revision} · ${storedTrajectory.origin === 'manual' ? 'von Hand' : storedTrajectory.origin === 'manual_edit' ? 'nachgebessert' : 'Modellvorschlag'}`
-                  : 'Für diesen Frame ist nichts gespeichert.'}
+                {editingTrajectoryId ? 'Bestehende Linie wird bearbeitet' : trajectory.length ? 'Neue Linie' : 'Keine Linie in Arbeit'}
               </span>
             </div>
+            {otherTrajectories.length > 0 && (
+              <div className="stored-trajectory-list">
+                <b>{otherTrajectories.length} weitere gespeicherte Linie(n)</b>
+                {otherTrajectories.map(item => (
+                  <div key={item.id}>
+                    <span>
+                      {item.origin === 'manual' ? 'Von Hand' : item.origin === 'manual_edit' ? 'Nachgebessert' : 'Modellvorschlag'}
+                    </span>
+                    <small>
+                      {item.points.length} Punkte · Revision {item.revision}
+                    </small>
+                    <button disabled={trajectorySaving} onClick={() => editTrajectory(item)}>
+                      Bearbeiten
+                    </button>
+                    <button className="danger" disabled={trajectorySaving} onClick={() => void removeTrajectory(item)}>
+                      Entfernen
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+            </div>
+          </details>
 
+          <details className="labeling-tool-section" open>
+            <summary>
+              <span>Polygon bearbeiten</span>
+              <small>Punkte, Vollbild-Label und Verlauf</small>
+            </summary>
+            <div className="labeling-tool-content">
           <div className="polygon-tool-grid">
             <button className={tool === 'add' ? 'active' : ''} onClick={() => setTool('add')}>
               ＋ Punkt hinzufügen
@@ -2236,6 +2434,17 @@ export default function GroundTruthLabeler({
             </button>
             <button className={tool === 'pan' ? 'active' : ''} onClick={() => setTool('pan')}>
               ✋ Bild verschieben
+            </button>
+            <button
+              className="danger"
+              disabled={!points.length}
+              onClick={() => {
+                updatePoints([])
+                setTool('add')
+                setSelectedVertex(null)
+              }}
+            >
+              Aktuelles Polygon löschen
             </button>
           </div>
           {tool === 'add' && (
@@ -2273,23 +2482,19 @@ export default function GroundTruthLabeler({
             <button disabled={!future.length} onClick={redo}>
               ↷ Redo
             </button>
-            <button
-              className="danger"
-              disabled={!points.length}
-              onClick={() => {
-                updatePoints([])
-                setTool('add')
-                setSelectedVertex(null)
-              }}
-            >
-              Aktuelles Polygon löschen
-            </button>
           </div>
           <small className="automatic-carry-note">
             Beim nächsten Frame bleibt das aktuelle Polygon automatisch als editierbare Vorlage sichtbar.
           </small>
+            </div>
+          </details>
 
-          <hr />
+          <details className="labeling-tool-section">
+            <summary>
+              <span>Sicherheits- und Problemzonen</span>
+              <small>Kritische Frames für die spätere Prüfung</small>
+            </summary>
+            <div className="labeling-tool-content">
           <div className={`label-record-state ${status} ${dirty ? 'dirty' : ''}`}>
             <b>
               {dirty
@@ -2340,6 +2545,8 @@ export default function GroundTruthLabeler({
               </small>
             )}
           </div>
+            </div>
+          </details>
 
           <details className="keyboard-shortcut-legend">
             <summary>Tastaturkürzel</summary>

@@ -1,18 +1,15 @@
 import {useEffect, useState} from 'react'
-import SurveyMap from './SurveyMap'
 import AnalysisView from './AnalysisView'
 import GroundTruthLabeler from './GroundTruthLabeler'
 import GlobalModelDashboard from './GlobalModelDashboard'
 import RunRegistry from './RunRegistry'
+import RefinementHistory from './RefinementHistory'
+import TrainingProcessPage, {ModelPerformanceDashboard} from './TrainingProcessPage'
 import {getAnalysis, getReconstruction, getSegmentation, listMissions, uploadMission} from './api'
 import {terrainCategoryLabel, TERRAIN_CATEGORY_OPTIONS} from './terrainCategories'
-import type {Analysis, Mission, Point, Reconstruction, Segmentation, VideoInput} from './types'
-
-const blank = {lat: 48.7, lng: 9}
-const fmt = (n: number) => new Intl.NumberFormat('de-DE', {maximumFractionDigits: 6}).format(n)
+import type {Analysis, Mission, Reconstruction, RegistryRun, Segmentation, VideoInput} from './types'
 
 export default function App() {
-  const [route, setRoute] = useState<Point[]>([])
   const [name, setName] = useState('')
   const [videos, setVideos] = useState<VideoInput[]>([])
   const [notes, setNotes] = useState('')
@@ -30,9 +27,14 @@ export default function App() {
     reconstruction: Reconstruction
     segmentation: Segmentation
   } | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState<Mission | null>(null)
   const [labelingMission, setLabelingMission] = useState<Mission | null>(null)
   const [modelCenter, setModelCenter] = useState(false)
   const [registry, setRegistry] = useState(false)
+  const [refinementRun, setRefinementRun] = useState<RegistryRun | null>(null)
+  const [refinementHistory, setRefinementHistory] = useState(false)
+  const [trainingProcess, setTrainingProcess] = useState(false)
+  const [performanceDashboard, setPerformanceDashboard] = useState(false)
 
   const refresh = () =>
     listMissions()
@@ -42,13 +44,6 @@ export default function App() {
   useEffect(() => {
     void refresh()
   }, [])
-
-  const setEndpoint = (index: number, key: 'lat' | 'lng', value: string) => {
-    const next = [...route]
-    while (next.length < 2) next.push({...blank})
-    next[index] = {...next[index], [key]: Number(value)}
-    setRoute(next)
-  }
 
   const files = (list: FileList | null) => {
     if (!list) return
@@ -68,7 +63,6 @@ export default function App() {
 
     const missing: string[] = []
     if (name.trim().length < 3) missing.push('Missionsname (mindestens 3 Zeichen)')
-    if (route.length < 2) missing.push('Start A und Ende B auf der Karte')
     if (videos.length < 1) missing.push('mindestens ein Video')
     if (videos.length > 4) missing.push('höchstens vier Videos')
     if (videos.some(video => !video.terrainCategory?.trim())) missing.push('für jedes Video eine Terrainkategorie')
@@ -84,9 +78,6 @@ export default function App() {
       const saved = await uploadMission(
         {
           name: name.trim(),
-          start: route[0],
-          end: route.at(-1)!,
-          route,
           movement_start: moveStart || undefined,
           movement_end: moveEnd || undefined,
           pauses: pauseStart && pauseEnd ? [{start_seconds: +pauseStart, end_seconds: +pauseEnd, note: ''}] : [],
@@ -97,7 +88,6 @@ export default function App() {
       )
       setSuccess(saved)
       setName('')
-      setRoute([])
       setVideos([])
       setNotes('')
       refresh()
@@ -110,6 +100,7 @@ export default function App() {
 
   const openAnalysis = async (mission: Mission) => {
     setError('')
+    setAnalysisLoading(mission)
     try {
       const [data, reconstruction, segmentation] = await Promise.all([
         getAnalysis(mission.id),
@@ -119,6 +110,8 @@ export default function App() {
       setAnalysis({mission, data, reconstruction, segmentation})
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : 'Auswertung nicht verfügbar')
+    } finally {
+      setAnalysisLoading(null)
     }
   }
 
@@ -153,10 +146,17 @@ export default function App() {
     )
   }
 
+  if (refinementHistory) {
+    return <main><RefinementHistory initialRun={refinementRun} onClose={() => { setRefinementHistory(false); setRefinementRun(null) }} /></main>
+  }
+
+  if (trainingProcess) return <main><TrainingProcessPage onClose={() => setTrainingProcess(false)} /></main>
+  if (performanceDashboard) return <main><ModelPerformanceDashboard onClose={() => setPerformanceDashboard(false)} /></main>
+
   if (modelCenter) {
     return (
       <main>
-        <GlobalModelDashboard onClose={() => setModelCenter(false)} />
+        <GlobalModelDashboard onClose={() => setModelCenter(false)} onOpenRefinement={() => { setModelCenter(false); setRefinementRun(null); setRefinementHistory(true) }} />
       </main>
     )
   }
@@ -169,6 +169,11 @@ export default function App() {
             setRegistry(false)
             void refresh()
           }}
+          onOpenRefinement={run => {
+            setRegistry(false)
+            setRefinementRun(run)
+            setRefinementHistory(true)
+          }}
         />
       </main>
     )
@@ -176,15 +181,22 @@ export default function App() {
 
   return (
     <main>
-      <header>
-        <div>
-          <span className="eyebrow">ARTEMIS CIVIL SYSTEMS · SURVEY INTAKE</span>
-          <h1>ARIADNE</h1>
-          <p>Manuelle Waldbegehung als belastbares Mission Package erfassen.</p>
+      <header className="app-header">
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">A</div>
+          <div>
+            <span className="eyebrow">ARTEMIS CIVIL SYSTEMS</span>
+            <h1>ARIADNE</h1>
+            <p>Video intelligence for field operations</p>
+          </div>
         </div>
         <div className="header-actions">
-          <button onClick={() => setRegistry(true)}>RUN-REGISTRY</button>
-          <button onClick={() => setModelCenter(true)}>KI-MODELLZENTRUM</button>
+          <nav className="app-navigation" aria-label="Arbeitsbereiche">
+            <button onClick={() => setRegistry(true)}>RUN-REGISTRY</button>
+            <button onClick={() => setTrainingProcess(true)}>KI-TRAININGSPROZESS</button>
+            <button onClick={() => setPerformanceDashboard(true)}>MODELL-DASHBOARD</button>
+            <button className="nav-primary" onClick={() => setModelCenter(true)}>KI-MODELLZENTRUM</button>
+          </nav>
           <div className="status">
             <i />
             SYSTEM BEREIT
@@ -198,56 +210,12 @@ export default function App() {
             <div className="step">01</div>
             <div className="section-head">
               <h2>Survey-Mission</h2>
-              <p>Bezeichnung und tatsächlich begangene Route</p>
+              <p>Bezeichnung der Aufnahme. Eine Georeferenzierung ist für den aktuellen Labeling-Workflow nicht erforderlich.</p>
             </div>
             <label>
               Missionsname
               <input value={name} onChange={e => setName(e.target.value)} placeholder="z. B. Nordhang Vorerkundung" maxLength={120} />
             </label>
-            <div className="coords">
-              <label>
-                Start A · Breite
-                <input type="number" step="any" value={route[0]?.lat ?? ''} onChange={e => setEndpoint(0, 'lat', e.target.value)} />
-              </label>
-              <label>
-                Start A · Länge
-                <input type="number" step="any" value={route[0]?.lng ?? ''} onChange={e => setEndpoint(0, 'lng', e.target.value)} />
-              </label>
-              <label>
-                Ende B · Breite
-                <input
-                  type="number"
-                  step="any"
-                  value={route.at(-1)?.lat ?? ''}
-                  onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lat', e.target.value)}
-                />
-              </label>
-              <label>
-                Ende B · Länge
-                <input
-                  type="number"
-                  step="any"
-                  value={route.at(-1)?.lng ?? ''}
-                  onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lng', e.target.value)}
-                />
-              </label>
-            </div>
-            <SurveyMap route={route} onChange={setRoute} />
-            <div className="route-readout">
-              {route.length >= 2 ? (
-                <>
-                  <b>{route.length} Wegpunkte</b>
-                  <span>
-                    A {fmt(route[0].lat)}, {fmt(route[0].lng)}
-                  </span>
-                  <span>
-                    B {fmt(route.at(-1)!.lat)}, {fmt(route.at(-1)!.lng)}
-                  </span>
-                </>
-              ) : (
-                <span>Setze mindestens Start A und Ende B auf der Karte.</span>
-              )}
-            </div>
           </section>
 
           <section>
@@ -377,7 +345,6 @@ export default function App() {
           )}
           <div className="requirements" aria-label="Speichervoraussetzungen">
             <span className={name.trim().length >= 3 ? 'done' : ''}>Missionsname</span>
-            <span className={route.length >= 2 ? 'done' : ''}>Route A–B</span>
             <span className={videos.length > 0 && videos.length <= 4 ? 'done' : ''}>1–4 Videos</span>
             <span className={videos.length > 0 && videos.length <= 4 && videos.every(video => video.terrainCategory?.trim()) ? 'done' : ''}>
               Terrainkategorien
@@ -400,14 +367,24 @@ export default function App() {
                 <h3>{mission.name}</h3>
                 <p>{new Date(mission.created_at).toLocaleString('de-DE')}</p>
                 <div>
-                  {mission.route.length} Wegpunkte · {mission.videos.length} Videos ·{' '}
+                  {mission.route.length ? `${mission.route.length} Wegpunkte · ` : 'ohne Georeferenzierung · '}{mission.videos.length} Videos ·{' '}
                   {mission.videos.map(video => terrainCategoryLabel(video.terrain_category)).join(' · ')}
                 </div>
                 <button className="analysis-button labeling-entry" type="button" onClick={() => setLabelingMission(mission)}>
                   BEFAHRBAREN WEG LABELN →
                 </button>
-                <button className="analysis-button secondary" type="button" onClick={() => void openAnalysis(mission)}>
-                  VORHANDENE AUSWERTUNG ÖFFNEN
+                <button
+                  className="analysis-button secondary"
+                  type="button"
+                  disabled={analysisLoading !== null || mission.route.length < 2}
+                  title={mission.route.length < 2 ? 'Für die Karten-Auswertung muss später eine Georeferenzierung ergänzt werden.' : undefined}
+                  onClick={() => void openAnalysis(mission)}
+                >
+                  {mission.route.length < 2
+                    ? 'KARTEN-AUSWERTUNG: GEOREFERENZIERUNG FEHLT'
+                    : analysisLoading?.id === mission.id
+                      ? 'AUSWERTUNG WIRD GELADEN …'
+                      : 'VORHANDENE AUSWERTUNG ÖFFNEN'}
                 </button>
                 <code>{mission.id.slice(0, 8)}</code>
               </article>
@@ -415,7 +392,14 @@ export default function App() {
           )}
         </aside>
       </div>
-      <footer>GOAL 2 · EVIDENZBASIERTE AUSWERTUNG · KEINE SICHERHEITSFREIGABE</footer>
+      {analysisLoading && (
+        <div className="analysis-loading" role="status" aria-live="polite">
+          <div className="analysis-loading-bar" />
+          <b>Auswertung wird geladen</b>
+          <span>{analysisLoading.name} — Evidenzdaten, Rekonstruktion und Segmentierung werden vorbereitet.</span>
+        </div>
+      )}
+      <footer>ARIADNE OPERATIONS PLATFORM <span>·</span> EVIDENZBASIERTE AUSWERTUNG <span>·</span> KEINE SICHERHEITSFREIGABE</footer>
     </main>
   )
 }

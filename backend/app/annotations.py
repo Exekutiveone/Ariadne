@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .label_ontology import CORE_CLASSES, UNLABELLED, layer_of, ontology_document
+from .problem_reasons import use_reason
 from .labeling import frame_reference, probe_labeling_video
 from .models import GroundTruthAnnotationInput, MissionRecord
 from .segmentation import current_segmentation_dir
@@ -200,6 +201,9 @@ def save_annotation(
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporary, target)
+    for polygon in payload.polygons:
+        if polygon.uncertainty_reason:
+            use_reason(mission_dir.parent, polygon.uncertainty_reason)
     return record
 
 

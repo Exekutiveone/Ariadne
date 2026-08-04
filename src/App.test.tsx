@@ -41,6 +41,8 @@ test('renders Goal 1 upload workflow with visible requirements', () => {
   render(<App />)
   expect(screen.getByText('Survey-Mission')).toBeInTheDocument()
   expect(screen.getByText('Originalvideos')).toBeInTheDocument()
+  expect(screen.queryByText(/Start A/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Route A/)).not.toBeInTheDocument()
   expect(screen.getByLabelText('Speichervoraussetzungen')).toHaveTextContent('Missionsname')
   expect(screen.getByRole('button', {name: /MISSION PERSISTENT/})).toBeEnabled()
   expect(screen.getByRole('button', {name: 'KI-MODELLZENTRUM'})).toBeEnabled()

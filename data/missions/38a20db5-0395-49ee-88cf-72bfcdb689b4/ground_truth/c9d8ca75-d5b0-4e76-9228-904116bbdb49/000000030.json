@@ -1,0 +1,720 @@
+{
+  "schema_version": "3.0",
+  "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+  "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+  "frame_index": 30,
+  "timestamp_ms": 1010,
+  "source_frame_hash": "b47a24ab0cb388e0d5d509b0399c218364da39356d3420ac4c523b7264417dcc",
+  "polygons": [
+    {
+      "id": "traversable-1",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.014443836282916742,
+          0.9896004378762999
+        ],
+        [
+          0.9699872286079183,
+          0.9863163656267104
+        ],
+        [
+          0.9777716961625008,
+          0.7378215654077723
+        ],
+        [
+          0.9388493583895883,
+          0.7235905856595511
+        ],
+        [
+          0.9077114881712582,
+          0.7093596059113301
+        ],
+        [
+          0.8590585659551176,
+          0.6907498631636563
+        ],
+        [
+          0.7500760201909628,
+          0.6283524904214559
+        ],
+        [
+          0.7014230979748222,
+          0.6031746031746031
+        ],
+        [
+          0.6683391108678465,
+          0.5648604269293924
+        ],
+        [
+          0.6157939548744147,
+          0.5287356321839081
+        ],
+        [
+          0.5768716171015021,
+          0.5243568691844553
+        ],
+        [
+          0.5223803442194247,
+          0.4696223316912972
+        ],
+        [
+          0.4367512011190172,
+          0.44116037219485493
+        ],
+        [
+          0.4270206166757891,
+          0.3973727422003284
+        ],
+        [
+          0.4834580064465122,
+          0.3853311439518336
+        ],
+        [
+          0.4756735388919297,
+          0.35686918445539134
+        ],
+        [
+          0.43091285045308036,
+          0.3415435139573071
+        ],
+        [
+          0.45426625311682783,
+          0.3251231527093596
+        ],
+        [
+          0.4386973180076628,
+          0.3054187192118227
+        ],
+        [
+          0.4386973180076628,
+          0.2813355227148331
+        ],
+        [
+          0.4776196557805753,
+          0.2813355227148331
+        ],
+        [
+          0.48929635711244907,
+          0.2627257799671593
+        ],
+        [
+          0.4776196557805753,
+          0.22550629447181172
+        ],
+        [
+          0.46399683756005594,
+          0.19376026272577998
+        ],
+        [
+          0.4503740193395366,
+          0.15654077723043242
+        ],
+        [
+          0.4581584868941191,
+          0.05035577449370553
+        ],
+        [
+          0.43480508423037156,
+          0.04926108374384237
+        ],
+        [
+          0.0008210180623973727,
+          0.6535303776683087
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1dnyu-w5bfk",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "traversable-2",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.9913945143830202,
+          0.6392993979200876
+        ],
+        [
+          0.8843580855075108,
+          0.6480569239189928
+        ],
+        [
+          0.8610046828437633,
+          0.6874657909140668
+        ],
+        [
+          0.7422915526363802,
+          0.6195949644225506
+        ],
+        [
+          0.8512740984005351,
+          0.5736179529282978
+        ],
+        [
+          0.7461837864136714,
+          0.5079365079365079
+        ],
+        [
+          0.6936386304202397,
+          0.4849480021893815
+        ],
+        [
+          0.7559143708568996,
+          0.43459222769567596
+        ],
+        [
+          0.707261448640759,
+          0.4028461959496442
+        ],
+        [
+          0.7675910721887733,
+          0.37110016420361247
+        ],
+        [
+          0.800675059295749,
+          0.3470169677066229
+        ],
+        [
+          0.8026211761843945,
+          0.3240284619594964
+        ],
+        [
+          0.810405643738977,
+          0.30103995621237
+        ],
+        [
+          0.7773216566320015,
+          0.27257799671592775
+        ],
+        [
+          0.7306148513045064,
+          0.2594417077175698
+        ],
+        [
+          0.707261448640759,
+          0.23316912972085385
+        ],
+        [
+          0.7734294228547102,
+          0.23535851122058019
+        ],
+        [
+          0.7189381499726327,
+          0.21237000547345375
+        ],
+        [
+          0.7092075655294046,
+          0.1893814997263273
+        ],
+        [
+          0.676123578422429,
+          0.1926655719759168
+        ],
+        [
+          0.582709967767439,
+          0.060207991242474
+        ],
+        [
+          0.6157939548744147,
+          0.05363984674329502
+        ],
+        [
+          0.7636988384114821,
+          0.1620142309797482
+        ],
+        [
+          0.8571124490664721,
+          0.21018062397372742
+        ],
+        [
+          0.862950799732409,
+          0.23645320197044334
+        ],
+        [
+          0.9213343063917776,
+          0.25725232621784344
+        ],
+        [
+          0.9349571246122971,
+          0.3043240284619595
+        ],
+        [
+          0.9563644103873989,
+          0.2835249042145594
+        ],
+        [
+          0.9933406312716657,
+          0.33388067870826493
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1fsp9-6mqlm",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "restricted-3",
+      "class_id": "restricted",
+      "points": [
+        [
+          0.8746275010642827,
+          0.6808976464148878
+        ],
+        [
+          0.9174420726144864,
+          0.6436781609195402
+        ],
+        [
+          0.9738794623852095,
+          0.6819923371647509
+        ],
+        [
+          0.9349571246122971,
+          0.7137383689107827
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1g59a-tzezm",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "restricted-4",
+      "class_id": "restricted",
+      "points": [
+        [
+          0.7345070850817977,
+          0.6141215106732348
+        ],
+        [
+          0.8337590464027246,
+          0.5725232621784346
+        ],
+        [
+          0.7714833059660646,
+          0.3623426382047072
+        ],
+        [
+          0.7967828255184577,
+          0.33169129720853857
+        ],
+        [
+          0.8065134099616859,
+          0.2999452654625068
+        ],
+        [
+          0.7306148513045064,
+          0.2681992337164751
+        ],
+        [
+          0.6936386304202397,
+          0.25177887246852765
+        ],
+        [
+          0.7014230979748222,
+          0.23426382047071703
+        ],
+        [
+          0.6333090068722252,
+          0.13574165298303228
+        ],
+        [
+          0.4601046037827647,
+          0.14668856048166393
+        ],
+        [
+          0.4931885908897403,
+          0.24849480021893816
+        ],
+        [
+          0.4523201362281822,
+          0.29009304871373837
+        ],
+        [
+          0.4601046037827647,
+          0.31527093596059114
+        ],
+        [
+          0.43480508423037156,
+          0.3393541324575807
+        ],
+        [
+          0.48735024022380347,
+          0.3787629994526546
+        ],
+        [
+          0.43480508423037156,
+          0.4006568144499179
+        ],
+        [
+          0.4445356686735997,
+          0.43349753694581283
+        ],
+        [
+          0.5068114091102597,
+          0.46195949644225504
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1hr7l-nn8w5",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "not-traversable-5",
+      "class_id": "not_traversable",
+      "points": [
+        [
+          0.006659368728334246,
+          0.6371100164203612
+        ],
+        [
+          0.4289667335644347,
+          0.05035577449370553
+        ],
+        [
+          0.002767134951042997,
+          0.003284072249589491
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1i3v8-34jel",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "not-traversable-6",
+      "class_id": "not_traversable",
+      "points": [
+        [
+          0.629416773094934,
+          0.051450465243568694
+        ],
+        [
+          0.9952867481603114,
+          0.006568144499178982
+        ],
+        [
+          0.9933406312716657,
+          0.3251231527093596
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf1i8o0-8htn4",
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "roi": [],
+  "frame_size": {
+    "width": 1080,
+    "height": 1920
+  },
+  "status": "draft",
+  "annotator": "Simon",
+  "notes": "",
+  "label_mode": "linear",
+  "revision": 1,
+  "updated_at": "2026-08-04T19:18:35.599299+00:00",
+  "statistics": {
+    "polygon_count": 6,
+    "point_count": 85,
+    "classes": {
+      "traversable": 2,
+      "restricted": 2,
+      "not_traversable": 2
+    },
+    "layers": {
+      "core": 6
+    },
+    "certainty": {
+      "certain": 6
+    },
+    "origin": {
+      "manual": 6
+    },
+    "hard_negatives": 0,
+    "roi_count": 0,
+    "roi_classes": {}
+  },
+  "ontology": {
+    "schema_version": "3.0",
+    "unlabelled": {
+      "key": "unlabelled",
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "layers": [
+      {
+        "layer": "core",
+        "label": "Kernklasse",
+        "exclusive": true,
+        "classes": [
+          {
+            "class_id": "traversable",
+            "layer": "core",
+            "label": "Befahrbarer Boden",
+            "color": "#55d96f",
+            "value": 1,
+            "description": "Fester Untergrund, auf dem das Fahrzeug ohne Einschränkung fahren kann."
+          },
+          {
+            "class_id": "restricted",
+            "layer": "core",
+            "label": "Eingeschränkt befahrbar",
+            "color": "#e4c264",
+            "value": 4,
+            "description": "Befahrbar, aber mit Risiko oder nur langsam — etwa Matsch, loser Schotter, hohes Gras."
+          },
+          {
+            "class_id": "not_traversable",
+            "layer": "core",
+            "label": "Nicht befahrbar",
+            "color": "#e05b52",
+            "value": 2,
+            "description": "Sicher nicht befahrbar, unabhängig von der Ursache."
+          },
+          {
+            "class_id": "unknown",
+            "layer": "core",
+            "label": "Nicht bewertbar / verdeckt",
+            "color": "#737c78",
+            "value": 3,
+            "description": "Keine Aussage möglich: verdeckt, überbelichtet, zu unscharf."
+          }
+        ]
+      },
+      {
+        "layer": "obstacle",
+        "label": "Hindernis",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tree",
+            "layer": "obstacle",
+            "label": "Baum",
+            "color": "#2f7d4f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shrub",
+            "layer": "obstacle",
+            "label": "Busch / dichtes Gebüsch",
+            "color": "#4f9c5f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "log",
+            "layer": "obstacle",
+            "label": "Großer Ast / Baumstamm",
+            "color": "#8a6a3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "rock",
+            "layer": "obstacle",
+            "label": "Stein",
+            "color": "#8f9499",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "ditch",
+            "layer": "obstacle",
+            "label": "Graben",
+            "color": "#5b4a7a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "water",
+            "layer": "obstacle",
+            "label": "Wasser / Pfütze",
+            "color": "#3f7fbf",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "barrier",
+            "layer": "obstacle",
+            "label": "Zaun / Pfosten / harte Barriere",
+            "color": "#c94f8a",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "zone",
+        "label": "Problemzone",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tall_grass",
+            "layer": "zone",
+            "label": "Hohes Gras",
+            "color": "#9bbf5a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "leaves",
+            "layer": "zone",
+            "label": "Laub",
+            "color": "#bf8f4a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mud",
+            "layer": "zone",
+            "label": "Matsch",
+            "color": "#7a5c3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "loose_gravel",
+            "layer": "zone",
+            "label": "Loser Schotter",
+            "color": "#a8a49a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mixed_surface",
+            "layer": "zone",
+            "label": "Gemischter Untergrund",
+            "color": "#b0975f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "narrow_passage",
+            "layer": "zone",
+            "label": "Engstelle",
+            "color": "#d98f3f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "partial_occlusion",
+            "layer": "zone",
+            "label": "Teilverdeckung",
+            "color": "#6f7a86",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shadow",
+            "layer": "zone",
+            "label": "Schatten",
+            "color": "#4a5158",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "blur",
+            "layer": "zone",
+            "label": "Unscharfer Bereich",
+            "color": "#6a6f74",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "roi",
+        "label": "Auswertungsbereich",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "roi_interest",
+            "layer": "roi",
+            "label": "Interessiert",
+            "color": "#67e6f1",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_ignore",
+            "layer": "roi",
+            "label": "Nicht interessiert / ignorieren",
+            "color": "#3a4149",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_uncertain",
+            "layer": "roi",
+            "label": "ROI unsicher",
+            "color": "#c9a94f",
+            "value": null,
+            "description": ""
+          }
+        ]
+      }
+    ],
+    "certainty": [
+      {
+        "value": "certain",
+        "label": "Sicher"
+      },
+      {
+        "value": "uncertain",
+        "label": "Unsicher"
+      },
+      {
+        "value": "partially_occluded",
+        "label": "Teilweise verdeckt"
+      }
+    ],
+    "origin": [
+      {
+        "value": "manual",
+        "label": "Von Hand gesetzt"
+      },
+      {
+        "value": "model_proposal",
+        "label": "Automatisch vorgeschlagen"
+      },
+      {
+        "value": "manual_corrected",
+        "label": "Vorschlag von Hand korrigiert"
+      },
+      {
+        "value": "human_confirmed",
+        "label": "Vom Menschen bestätigt"
+      }
+    ],
+    "notes": [
+      "Maskenwert 0 heisst 'nicht markiert' und wird im Training ignoriert, nicht 'nicht befahrbar'.",
+      "Hindernisse und Problemzonen tragen keinen Maskenwert: sie erklaeren eine Fläche, statt sie zu ersetzen.",
+      "Der Auswertungsbereich schneidet das Bild nicht zu — das Original bleibt vollständig erhalten."
+    ]
+  }
+}

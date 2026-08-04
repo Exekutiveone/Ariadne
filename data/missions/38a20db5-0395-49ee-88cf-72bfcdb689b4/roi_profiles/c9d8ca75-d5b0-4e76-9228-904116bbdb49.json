@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+  "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+  "top_ignore_fraction": 0.01,
+  "bottom_ignore_fraction": 0.05,
+  "roi": [
+    {
+      "id": "roi-top",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.01
+        ],
+        [
+          0.0,
+          0.01
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Oberer Bildrand, 1 % ignoriert",
+      "uncertainty_reason": "",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "roi-bottom",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.95
+        ],
+        [
+          1.0,
+          0.95
+        ],
+        [
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Unterer Bildrand, 5 % ignoriert",
+      "uncertainty_reason": "",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "note": "",
+  "annotator": "Simon",
+  "coordinate_space": "normalized_to_original_frame",
+  "revision": 1,
+  "created_at": "2026-08-04T21:27:55.320556+00:00",
+  "updated_at": "2026-08-04T21:27:55.320562+00:00",
+  "applies_as": "suggestion_only_frame_labels_decide"
+}

@@ -24,6 +24,7 @@ from .global_video_analysis import (
     start_global_video_analysis,
 )
 from .label_ontology import ontology_document
+from .problem_reasons import add_reason, list_reasons
 from .label_tracks import video_tracks
 from .labeling import list_labeling_videos
 from .models import (
@@ -31,6 +32,7 @@ from .models import (
     GroundTruthAnnotationInput,
     MissionRecord,
     OffPathIntervalInput,
+    ProblemReasonInput,
     PathRefinementInput,
     RoiProfileInput,
     RunRegistryUpdateInput,
@@ -59,7 +61,7 @@ from .terrain_model import (
     terrain_prediction_run,
     train_terrain_model,
 )
-from .trajectories import delete_trajectory, get_trajectory, list_trajectories, save_trajectory
+from .trajectories import create_trajectory, delete_trajectory, get_trajectories, list_trajectories, update_trajectory
 
 logging.basicConfig(level=os.getenv("ARIADNE_LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ariadne")
@@ -168,6 +170,19 @@ def label_ontology():
     nicht an zwei Stellen gepflegt werden muessen.
     """
     return ontology_document()
+
+
+@app.get("/api/v1/problem-reasons")
+def problem_reasons_list():
+    return {"items": list_reasons(store.root)}
+
+
+@app.post("/api/v1/problem-reasons", status_code=201)
+def problem_reasons_create(payload: ProblemReasonInput):
+    try:
+        return add_reason(store.root, payload.label)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @app.get("/api/v1/registry/runs")
@@ -311,40 +326,50 @@ def trajectories_list(mission_id: str, video_id: str | None = None):
 
 
 @app.get("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}")
-def trajectory_get(mission_id: str, video_id: str, frame_index: int):
+def trajectory_list_for_frame(mission_id: str, video_id: str, frame_index: int):
     record = store.get(mission_id)
     if not record:
         raise HTTPException(404, "Mission nicht gefunden")
     if not any(video.id == video_id for video in record.videos):
         raise HTTPException(404, "Video nicht gefunden")
-    trajectory = get_trajectory(store.root / mission_id, video_id, frame_index)
-    if trajectory is None:
-        raise HTTPException(404, "Für diesen Frame ist keine Trajektorie gespeichert")
-    return trajectory
+    return get_trajectories(store.root / mission_id, video_id, frame_index)
 
 
-@app.put("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}")
-def trajectory_put(mission_id: str, video_id: str, frame_index: int, payload: TrajectoryInput):
+@app.post("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}", status_code=201)
+def trajectory_create(mission_id: str, video_id: str, frame_index: int, payload: TrajectoryInput):
     record = store.get(mission_id)
     if not record:
         raise HTTPException(404, "Mission nicht gefunden")
     try:
-        return save_trajectory(record, store.root / mission_id, video_id, frame_index, payload)
+        return create_trajectory(record, store.root / mission_id, video_id, frame_index, payload)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
 
 
-@app.delete("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}", status_code=204)
-def trajectory_delete(mission_id: str, video_id: str, frame_index: int):
+@app.put("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}/{trajectory_id}")
+def trajectory_update(mission_id: str, video_id: str, frame_index: int, trajectory_id: str, payload: TrajectoryInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return update_trajectory(record, store.root / mission_id, video_id, frame_index, trajectory_id, payload)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.delete("/api/v1/missions/{mission_id}/trajectories/{video_id}/{frame_index}/{trajectory_id}", status_code=204)
+def trajectory_delete(mission_id: str, video_id: str, frame_index: int, trajectory_id: str):
     record = store.get(mission_id)
     if not record:
         raise HTTPException(404, "Mission nicht gefunden")
     if not any(video.id == video_id for video in record.videos):
         raise HTTPException(404, "Video nicht gefunden")
-    if not delete_trajectory(store.root / mission_id, video_id, frame_index):
-        raise HTTPException(404, "Für diesen Frame ist keine Trajektorie gespeichert")
+    if not delete_trajectory(store.root / mission_id, video_id, frame_index, trajectory_id):
+        raise HTTPException(404, "Diese Trajektorie ist nicht gespeichert")
 
 
 NO_TERRAIN_MODEL = "Es wurde noch kein Terrainmodell trainiert"

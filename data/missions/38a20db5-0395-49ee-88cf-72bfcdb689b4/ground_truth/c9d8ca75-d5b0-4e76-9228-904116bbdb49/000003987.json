@@ -1,0 +1,423 @@
+{
+  "schema_version": "3.0",
+  "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+  "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+  "frame_index": 3987,
+  "timestamp_ms": 134295,
+  "source_frame_hash": "41ea11fb4ddbac654a4f7c02e641810b6e5dc9b95a9f84bf1ea96edb9b8b430c",
+  "polygons": [
+    {
+      "id": "shrub-2",
+      "class_id": "shrub",
+      "points": [
+        [
+          0.25381621358632855,
+          0.3853311439518336
+        ],
+        [
+          0.17597153804050356,
+          0.5166940339354132
+        ],
+        [
+          0.6430395913154534,
+          0.4039408866995074
+        ],
+        [
+          0.5963327859879584,
+          0.48932676518883417
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf2g9fd-bec5s",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "shrub-4",
+      "class_id": "shrub",
+      "points": [
+        [
+          0.5904944353220215,
+          0.5692391899288451
+        ],
+        [
+          0.7169920330839871,
+          0.6130268199233716
+        ],
+        [
+          0.6352551237608709,
+          0.7027914614121511
+        ],
+        [
+          0.49124247400109466,
+          0.6349206349206349
+        ],
+        [
+          0.3725293437937116,
+          0.6732348111658456
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "tracking_id": "t-msf2h4ei-udv2d",
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "roi": [
+    {
+      "id": "roi-top",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.12
+        ],
+        [
+          0.0,
+          0.12
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Oberer Bildrand, 12 % ignoriert",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "roi-bottom",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.9
+        ],
+        [
+          1.0,
+          0.9
+        ],
+        [
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Unterer Bildrand, 10 % ignoriert",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "frame_size": {
+    "width": 1080,
+    "height": 1920
+  },
+  "status": "confirmed",
+  "annotator": "Simon",
+  "notes": "",
+  "label_mode": "shuffle",
+  "revision": 1,
+  "updated_at": "2026-08-04T19:44:26.263363+00:00",
+  "statistics": {
+    "polygon_count": 2,
+    "point_count": 9,
+    "classes": {
+      "shrub": 2
+    },
+    "layers": {
+      "obstacle": 2
+    },
+    "certainty": {
+      "certain": 2
+    },
+    "origin": {
+      "manual": 2
+    },
+    "hard_negatives": 0,
+    "roi_count": 2,
+    "roi_classes": {
+      "roi_ignore": 2
+    }
+  },
+  "ontology": {
+    "schema_version": "3.0",
+    "unlabelled": {
+      "key": "unlabelled",
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "layers": [
+      {
+        "layer": "core",
+        "label": "Kernklasse",
+        "exclusive": true,
+        "classes": [
+          {
+            "class_id": "traversable",
+            "layer": "core",
+            "label": "Befahrbarer Boden",
+            "color": "#55d96f",
+            "value": 1,
+            "description": "Fester Untergrund, auf dem das Fahrzeug ohne Einschränkung fahren kann."
+          },
+          {
+            "class_id": "restricted",
+            "layer": "core",
+            "label": "Eingeschränkt befahrbar",
+            "color": "#e4c264",
+            "value": 4,
+            "description": "Befahrbar, aber mit Risiko oder nur langsam — etwa Matsch, loser Schotter, hohes Gras."
+          },
+          {
+            "class_id": "not_traversable",
+            "layer": "core",
+            "label": "Nicht befahrbar",
+            "color": "#e05b52",
+            "value": 2,
+            "description": "Sicher nicht befahrbar, unabhängig von der Ursache."
+          },
+          {
+            "class_id": "unknown",
+            "layer": "core",
+            "label": "Nicht bewertbar / verdeckt",
+            "color": "#737c78",
+            "value": 3,
+            "description": "Keine Aussage möglich: verdeckt, überbelichtet, zu unscharf."
+          }
+        ]
+      },
+      {
+        "layer": "obstacle",
+        "label": "Hindernis",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tree",
+            "layer": "obstacle",
+            "label": "Baum",
+            "color": "#2f7d4f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shrub",
+            "layer": "obstacle",
+            "label": "Busch / dichtes Gebüsch",
+            "color": "#4f9c5f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "log",
+            "layer": "obstacle",
+            "label": "Großer Ast / Baumstamm",
+            "color": "#8a6a3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "rock",
+            "layer": "obstacle",
+            "label": "Stein",
+            "color": "#8f9499",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "ditch",
+            "layer": "obstacle",
+            "label": "Graben",
+            "color": "#5b4a7a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "water",
+            "layer": "obstacle",
+            "label": "Wasser / Pfütze",
+            "color": "#3f7fbf",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "barrier",
+            "layer": "obstacle",
+            "label": "Zaun / Pfosten / harte Barriere",
+            "color": "#c94f8a",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "zone",
+        "label": "Problemzone",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tall_grass",
+            "layer": "zone",
+            "label": "Hohes Gras",
+            "color": "#9bbf5a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "leaves",
+            "layer": "zone",
+            "label": "Laub",
+            "color": "#bf8f4a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mud",
+            "layer": "zone",
+            "label": "Matsch",
+            "color": "#7a5c3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "loose_gravel",
+            "layer": "zone",
+            "label": "Loser Schotter",
+            "color": "#a8a49a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mixed_surface",
+            "layer": "zone",
+            "label": "Gemischter Untergrund",
+            "color": "#b0975f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "narrow_passage",
+            "layer": "zone",
+            "label": "Engstelle",
+            "color": "#d98f3f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "partial_occlusion",
+            "layer": "zone",
+            "label": "Teilverdeckung",
+            "color": "#6f7a86",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shadow",
+            "layer": "zone",
+            "label": "Schatten",
+            "color": "#4a5158",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "blur",
+            "layer": "zone",
+            "label": "Unscharfer Bereich",
+            "color": "#6a6f74",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "roi",
+        "label": "Auswertungsbereich",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "roi_interest",
+            "layer": "roi",
+            "label": "Interessiert",
+            "color": "#67e6f1",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_ignore",
+            "layer": "roi",
+            "label": "Nicht interessiert / ignorieren",
+            "color": "#3a4149",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_uncertain",
+            "layer": "roi",
+            "label": "ROI unsicher",
+            "color": "#c9a94f",
+            "value": null,
+            "description": ""
+          }
+        ]
+      }
+    ],
+    "certainty": [
+      {
+        "value": "certain",
+        "label": "Sicher"
+      },
+      {
+        "value": "uncertain",
+        "label": "Unsicher"
+      },
+      {
+        "value": "partially_occluded",
+        "label": "Teilweise verdeckt"
+      }
+    ],
+    "origin": [
+      {
+        "value": "manual",
+        "label": "Von Hand gesetzt"
+      },
+      {
+        "value": "model_proposal",
+        "label": "Automatisch vorgeschlagen"
+      },
+      {
+        "value": "manual_corrected",
+        "label": "Vorschlag von Hand korrigiert"
+      },
+      {
+        "value": "human_confirmed",
+        "label": "Vom Menschen bestätigt"
+      }
+    ],
+    "notes": [
+      "Maskenwert 0 heisst 'nicht markiert' und wird im Training ignoriert, nicht 'nicht befahrbar'.",
+      "Hindernisse und Problemzonen tragen keinen Maskenwert: sie erklaeren eine Fläche, statt sie zu ersetzen.",
+      "Der Auswertungsbereich schneidet das Bild nicht zu — das Original bleibt vollständig erhalten."
+    ]
+  }
+}

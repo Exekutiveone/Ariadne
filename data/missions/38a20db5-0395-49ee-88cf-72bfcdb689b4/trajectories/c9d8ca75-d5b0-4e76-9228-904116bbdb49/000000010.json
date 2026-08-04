@@ -1,0 +1,98 @@
+[
+  {
+    "id": "traj-387a8bb7046d",
+    "schema_version": "2.0",
+    "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+    "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+    "frame_index": 10,
+    "timestamp_ms": 337,
+    "points": [
+      [
+        0.55741,
+        0.935961
+      ],
+      [
+        0.411452,
+        0.581281
+      ],
+      [
+        0.38226,
+        0.417077
+      ],
+      [
+        0.399775,
+        0.268199
+      ],
+      [
+        0.432859,
+        0.175151
+      ],
+      [
+        0.471781,
+        0.066776
+      ]
+    ],
+    "corridor": null,
+    "origin": "manual",
+    "note": "",
+    "annotator": "Simon",
+    "coordinate_space": "normalized_to_original_frame",
+    "revision": 1,
+    "created_at": "2026-08-04T21:34:50.780614+00:00",
+    "updated_at": "2026-08-04T21:34:50.780614+00:00"
+  },
+  {
+    "id": "traj-b45f860183ed",
+    "schema_version": "2.0",
+    "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+    "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+    "frame_index": 10,
+    "timestamp_ms": 337,
+    "points": [
+      [
+        0.572979,
+        0.931582
+      ],
+      [
+        0.829867,
+        0.713738
+      ],
+      [
+        0.882412,
+        0.573618
+      ],
+      [
+        0.909658,
+        0.423645
+      ],
+      [
+        0.864897,
+        0.343733
+      ],
+      [
+        0.777322,
+        0.236453
+      ],
+      [
+        0.697531,
+        0.152162
+      ],
+      [
+        0.641093,
+        0.113848
+      ],
+      [
+        0.598279,
+        0.084291
+      ]
+    ],
+    "corridor": null,
+    "origin": "manual",
+    "note": "",
+    "annotator": "Simon",
+    "coordinate_space": "normalized_to_original_frame",
+    "revision": 1,
+    "created_at": "2026-08-04T21:34:57.568498+00:00",
+    "updated_at": "2026-08-04T21:34:57.568498+00:00"
+  }
+]

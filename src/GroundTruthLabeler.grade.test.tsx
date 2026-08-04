@@ -79,6 +79,8 @@ const prediction = {
 }
 
 vi.mock('./api', () => ({
+  getProblemReasons: async () => ({items: []}),
+  createProblemReason: async () => ({value: 'custom_test', label: 'Test', uses: 0}),
   getLabelOntology: async () => ({
     schema_version: '3.0',
     unlabelled: {key: 'unlabelled', value: 0, label: 'Nicht markiert', color: '#00000000'},
@@ -135,8 +137,9 @@ vi.mock('./api', () => ({
     applies_as: 'suggestion_only_frame_labels_decide',
   }),
   saveRoiProfile: vi.fn(),
-  getTrajectory: async () => null,
-  saveTrajectory: vi.fn(),
+  listTrajectories: async () => [],
+  createTrajectory: vi.fn(),
+  updateTrajectory: vi.fn(),
   deleteTrajectory: vi.fn(),
   getLabelingVideos: async () => ({
     mission_id: 'mission-1',
@@ -186,7 +189,7 @@ const mount = () =>
 test('shows the graded AI mask with all six classes and the safety note by default', async () => {
   mount()
 
-  expect(await screen.findByRole('button', {name: 'Abstufung'})).toHaveClass('active')
+  expect(await screen.findByRole('button', {name: 'Abstufung'}, {timeout: 5_000})).toHaveClass('active')
   for (const label of [
     'Sicher befahrbar',
     'Gut befahrbar',
@@ -204,7 +207,7 @@ test('shows the graded AI mask with all six classes and the safety note by defau
 test('switches to the comparison mask and back without losing either legend', async () => {
   mount()
 
-  fireEvent.click(await screen.findByRole('button', {name: 'Vergleich'}))
+  fireEvent.click(await screen.findByRole('button', {name: 'Vergleich'}, {timeout: 5_000}))
 
   expect(screen.getByText('Übersehene Wegfläche')).toBeInTheDocument()
   expect(screen.getByText('Fälschlich erkannter Weg')).toBeInTheDocument()

@@ -1,12 +1,15 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {PointerEvent as ReactPointerEvent} from 'react'
 import {
+  createOffPathInterval,
   deleteCriticalFlag,
+  deleteOffPathInterval,
   getGlobalModelDashboard,
   getGlobalVideoAnalysisResult,
   getGlobalVideoAnalysisStatus,
   getLabelingVideos,
   listCriticalFlags,
+  listOffPathIntervals,
   predictGlobalPathFrame,
   saveCriticalFlag,
   startGlobalVideoAnalysis,
@@ -26,6 +29,7 @@ import type {
   GradeOntology,
   Grading,
   LabelingVideo,
+  OffPathInterval,
   PathPrediction,
   TerrainMask,
 } from './types'
@@ -37,7 +41,24 @@ const duration = (seconds: number | null) =>
       ? `${Math.ceil(seconds)} s`
       : `${Math.floor(seconds / 60)} min ${Math.ceil(seconds % 60)} s`
 
-export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
+type ReviewKind = 'incorrect' | 'major'
+type ReviewSnapshot = {
+  id: string
+  videoId: string
+  frameIndex: number
+  timestampMs: number
+  kind: ReviewKind
+  saved: boolean
+}
+
+const reviewKindLabel: Record<ReviewKind, string> = {
+  incorrect: 'Nicht korrekt markiert',
+  major: 'Erheblicher Fehler',
+}
+const playbackSpeeds = [0.25, 0.5, 1, 2, 4]
+const playbackSpeedLabel = (value: number) => `${String(value).replace('.', ',')}×`
+
+export default function GlobalModelDashboard({onClose, onOpenRefinement = () => undefined}: {onClose: () => void; onOpenRefinement?: () => void}) {
   const [data, setData] = useState<GlobalModelDashboardData | null>(null)
   const [training, setTraining] = useState(false)
   const [message, setMessage] = useState('')
@@ -69,7 +90,13 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     }[]
   >([])
   const [flagSaving, setFlagSaving] = useState(false)
+  const [reviewSnapshots, setReviewSnapshots] = useState<ReviewSnapshot[]>([])
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [errorIntervalStartMs, setErrorIntervalStartMs] = useState<number | null>(null)
+  const [errorIntervalSaving, setErrorIntervalSaving] = useState(false)
+  const [savedVideoRanges, setSavedVideoRanges] = useState<OffPathInterval[]>([])
   const [playing, setPlaying] = useState(false)
+  const [reversePlaying, setReversePlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [analysisStatus, setAnalysisStatus] = useState<GlobalVideoAnalysisStatus | null>(null)
   const [analysisResult, setAnalysisResult] = useState<GlobalVideoAnalysisResult | null>(null)
@@ -104,6 +131,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
   }, [selectedMissionId])
 
   const activeVideo = videos.find(item => item.video_id === selectedVideoId) ?? videos[0]
+  const playbackActive = playing || reversePlaying
   const [planning, setPlanning] = useState(false)
   const [trajectoryNote, setTrajectoryNote] = useState('')
   // Die Korridore kommen aus derselben Antwort wie die Maske — ein zweiter
@@ -128,6 +156,24 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
       })
       .catch(error => {
         if (!cancelled) setMessage(error instanceof Error ? error.message : 'Meldungen konnten nicht geladen werden')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedMissionId, activeVideo?.video_id])
+
+  useEffect(() => {
+    if (!selectedMissionId || !activeVideo) {
+      setSavedVideoRanges([])
+      return
+    }
+    let cancelled = false
+    void listOffPathIntervals(selectedMissionId, activeVideo.video_id)
+      .then(items => {
+        if (!cancelled) setSavedVideoRanges(items)
+      })
+      .catch(error => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : 'Videobereiche konnten nicht geladen werden')
       })
     return () => {
       cancelled = true
@@ -181,13 +227,13 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
       setPrediction(null)
       return
     }
-    // Korridore, Fluchtpunkt und Trajektorienvorschlag kommen ausschliesslich
-    // aus dieser Live-Antwort — die Batch-Analyse speichert sie nicht je
+    // Korridore und Trajektorienvorschlag kommen ausschliesslich aus dieser
+    // Live-Antwort — die Batch-Analyse speichert sie nicht je
     // Frame. Deshalb bleibt der Aufruf bei jedem Frame noetig, sobald nicht
     // gerade abgespielt wird, unabhaengig davon, ob die Abstufung bereits aus
     // der Batch-Analyse vorliegt. Nur waehrend der Wiedergabe wird verzichtet,
     // um die API nicht pro Frame zu treffen.
-    if (playing) {
+    if (playbackActive) {
       setPrediction(null)
       return
     }
@@ -211,7 +257,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     selectedMissionId,
     activeVideo?.video_id,
     frameIndex,
-    playing,
+    playbackActive,
     // Aendert sich die Kalibrierung, muessen die Korridore neu berechnet werden;
     // sie haengen an derselben Antwort wie die Maske.
     planner.calibration,
@@ -221,6 +267,13 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     if (!videoRef.current) return
     videoRef.current.playbackRate = speed
   }, [speed, activeVideo?.video_id])
+
+  const setPlaybackSpeed = (nextSpeed: number) => {
+    setSpeed(nextSpeed)
+    // Die Analyseframes sind bereits vorbereitet und folgen der Videouhr.
+    // Direkt setzen vermeidet einen sichtbaren Taktwechsel beim Umschalten.
+    if (videoRef.current) videoRef.current.playbackRate = nextSpeed
+  }
 
   useEffect(() => {
     if (!playing || !activeVideo) return
@@ -233,6 +286,30 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     animation = window.requestAnimationFrame(synchronize)
     return () => window.cancelAnimationFrame(animation)
   }, [playing, activeVideo?.video_id, activeVideo?.fps, activeVideo?.total_frames])
+
+  useEffect(() => {
+    if (!reversePlaying || !activeVideo) return
+    let animation = 0
+    let previous = performance.now()
+    let carry = 0
+    const rewind = (now: number) => {
+      carry += ((now - previous) * speed * activeVideo.fps) / 1000
+      previous = now
+      const step = Math.floor(carry)
+      if (step > 0) {
+        carry -= step
+        setFrameIndex(current => {
+          const next = Math.max(0, current - step)
+          if (videoRef.current) videoRef.current.currentTime = next / activeVideo.fps
+          if (next === 0) setReversePlaying(false)
+          return next
+        })
+      }
+      animation = window.requestAnimationFrame(rewind)
+    }
+    animation = window.requestAnimationFrame(rewind)
+    return () => window.cancelAnimationFrame(animation)
+  }, [reversePlaying, speed, activeVideo?.video_id, activeVideo?.fps])
 
   useEffect(() => {
     if (!activeVideo) {
@@ -327,6 +404,190 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
   }, [flagMaskRle])
 
   const activeCriticalFlag = criticalFlags.find(item => item.video_id === activeVideo?.video_id && item.frame_index === frameIndex) ?? null
+  const currentReviewSnapshots = useMemo(
+    () => reviewSnapshots.filter(snapshot => snapshot.videoId === activeVideo?.video_id),
+    [reviewSnapshots, activeVideo?.video_id],
+  )
+  const reviewFrameRange = useMemo(() => {
+    if (!currentReviewSnapshots.length) return null
+    const frames = currentReviewSnapshots.map(snapshot => snapshot.frameIndex)
+    return {first: Math.min(...frames), last: Math.max(...frames)}
+  }, [currentReviewSnapshots])
+  const pausedFrameReference = useMemo(() => {
+    if (!activeVideo) return null
+    const timestampMs = Math.round((frameIndex / activeVideo.fps) * 1000)
+    const review = currentReviewSnapshots.find(snapshot => snapshot.frameIndex === frameIndex)
+    return {timestampMs, review}
+  }, [activeVideo?.video_id, activeVideo?.fps, frameIndex, currentReviewSnapshots])
+
+  const saveCurrentReviewFrame = async () => {
+    if (!selectedMissionId || !activeVideo || !analysisResult || showFeedbackBrush || reviewSaving) return
+    const currentFrame = Math.max(
+      0,
+      Math.min(activeVideo.total_frames - 1, Math.floor((videoRef.current?.currentTime ?? frameIndex / activeVideo.fps) * activeVideo.fps)),
+    )
+    const existingReview = currentReviewSnapshots.find(snapshot => snapshot.frameIndex === currentFrame)
+    const kind = existingReview?.kind ?? 'incorrect'
+    videoRef.current?.pause()
+    setPlaying(false)
+    setFrameIndex(currentFrame)
+    setReviewSnapshots(current => {
+      if (current.some(snapshot => snapshot.videoId === activeVideo.video_id && snapshot.frameIndex === currentFrame)) return current
+      return [
+        ...current,
+        {
+          id: `${activeVideo.video_id}-${currentFrame}`,
+          videoId: activeVideo.video_id,
+          frameIndex: currentFrame,
+          timestampMs: Math.round((currentFrame / activeVideo.fps) * 1000),
+          kind,
+          saved: false,
+        },
+      ]
+    })
+    setReviewSaving(true)
+    try {
+      const existing = criticalFlags.find(flag => flag.video_id === activeVideo.video_id && flag.frame_index === currentFrame)
+      const quickReviewNote = `Schnellreview: ${reviewKindLabel[kind]}.`
+      const note = [existing?.note, quickReviewNote].filter((value, index, values) => value && values.indexOf(value) === index).join(' ')
+      await saveCriticalFlag(selectedMissionId, activeVideo.video_id, currentFrame, {
+        severity: Math.max(existing?.severity ?? 0, kind === 'major' ? 5 : 3),
+        brush_mask: existing?.brush_mask,
+        note,
+        annotator: 'human',
+      })
+      const refreshed = await listCriticalFlags(selectedMissionId, activeVideo.video_id)
+      setCriticalFlags(refreshed.items)
+      setReviewSnapshots(current =>
+        current.map(snapshot =>
+          snapshot.videoId === activeVideo.video_id && snapshot.frameIndex === currentFrame ? {...snapshot, saved: true} : snapshot,
+        ),
+      )
+      setMessage(`Falscher Frame ${currentFrame + 1} direkt als Trainingsfeedback gespeichert.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Falscher Frame konnte nicht gespeichert werden')
+    } finally {
+      setReviewSaving(false)
+    }
+  }
+
+  const videoTimestampMs = () =>
+    activeVideo ? Math.round((videoRef.current?.currentTime ?? frameIndex / activeVideo.fps) * 1000) : 0
+
+  const toggleVideoErrorRecording = async () => {
+    if (!activeVideo || !analysisResult || showFeedbackBrush || errorIntervalSaving) return
+    const timestampMs = videoTimestampMs()
+    if (errorIntervalStartMs === null) {
+      setErrorIntervalStartMs(timestampMs)
+      if (videoRef.current?.paused) {
+        setReversePlaying(false)
+        try {
+          await videoRef.current.play()
+        } catch (error) {
+          setErrorIntervalStartMs(null)
+          setMessage(error instanceof Error ? error.message : 'Video konnte nicht gestartet werden')
+          return
+        }
+      }
+      setMessage(`Fehlerintervall gestartet bei ${(timestampMs / 1000).toFixed(1)} s. Mit „Video beenden“ speichern.`)
+      return
+    }
+    const startMs = Math.min(errorIntervalStartMs, timestampMs)
+    const endMs = Math.max(errorIntervalStartMs, timestampMs)
+    if (endMs - startMs < 200) {
+      setMessage('Das Fehlerintervall muss mindestens 0,2 Sekunden lang sein.')
+      return
+    }
+    videoRef.current?.pause()
+    setPlaying(false)
+    setErrorIntervalSaving(true)
+    try {
+      const savedRange = await createOffPathInterval(selectedMissionId, activeVideo.video_id, {
+        start_ms: startMs,
+        end_ms: endMs,
+        note: 'Quick Review: KI-Ausgabe in diesem Abschnitt fehlerhaft.',
+        annotator: 'human',
+      })
+      setSavedVideoRanges(current => [...current, savedRange])
+      setErrorIntervalStartMs(null)
+      setMessage(`Fehlerintervall ${(startMs / 1000).toFixed(1)}–${(endMs / 1000).toFixed(1)} s gespeichert.`)
+    } catch (error) {
+      setErrorIntervalStartMs(null)
+      setMessage(error instanceof Error ? error.message : 'Fehlerintervall konnte nicht gespeichert werden')
+    } finally {
+      setErrorIntervalSaving(false)
+    }
+  }
+
+  const setReviewKind = (id: string, kind: ReviewKind) =>
+    setReviewSnapshots(current => current.map(snapshot => (snapshot.id === id ? {...snapshot, kind, saved: false} : snapshot)))
+
+  const removeReviewSnapshot = async (snapshot: ReviewSnapshot) => {
+    if (!selectedMissionId || !activeVideo || reviewSaving) return
+    if (!snapshot.saved) {
+      setReviewSnapshots(current => current.filter(item => item.id !== snapshot.id))
+      return
+    }
+    setReviewSaving(true)
+    try {
+      await deleteCriticalFlag(selectedMissionId, activeVideo.video_id, snapshot.frameIndex)
+      setReviewSnapshots(current => current.filter(item => item.id !== snapshot.id))
+      setCriticalFlags(current => current.filter(flag => !(flag.video_id === activeVideo.video_id && flag.frame_index === snapshot.frameIndex)))
+      setMessage(`Fehlerframe ${snapshot.frameIndex + 1} aus den Trainingsdaten entfernt.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Fehlerframe konnte nicht gelöscht werden')
+    } finally {
+      setReviewSaving(false)
+    }
+  }
+
+  const removeSavedVideoRange = async (range: OffPathInterval) => {
+    if (!selectedMissionId || !activeVideo || errorIntervalSaving) return
+    setErrorIntervalSaving(true)
+    try {
+      await deleteOffPathInterval(selectedMissionId, activeVideo.video_id, range.id)
+      setSavedVideoRanges(current => current.filter(item => item.id !== range.id))
+      setMessage(`Videobereich ${(range.start_ms / 1000).toFixed(1)}–${(range.end_ms / 1000).toFixed(1)} s aus den Trainingsdaten entfernt.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Videobereich konnte nicht gelöscht werden')
+    } finally {
+      setErrorIntervalSaving(false)
+    }
+  }
+
+  const saveReviewSnapshots = async () => {
+    if (!selectedMissionId || !activeVideo || reviewSaving) return
+    const pending = currentReviewSnapshots.filter(snapshot => !snapshot.saved)
+    if (!pending.length) return
+    setReviewSaving(true)
+    try {
+      for (const snapshot of pending) {
+        const existing = criticalFlags.find(
+          flag => flag.video_id === activeVideo.video_id && flag.frame_index === snapshot.frameIndex,
+        )
+        const quickReviewNote = `Schnellreview: ${reviewKindLabel[snapshot.kind]}.`
+        const note = [existing?.note, quickReviewNote].filter((value, index, values) => value && values.indexOf(value) === index).join(' ')
+        await saveCriticalFlag(selectedMissionId, activeVideo.video_id, snapshot.frameIndex, {
+          severity: Math.max(existing?.severity ?? 0, snapshot.kind === 'major' ? 5 : 3),
+          brush_mask: existing?.brush_mask,
+          note,
+          annotator: 'human',
+        })
+      }
+      const refreshed = await listCriticalFlags(selectedMissionId, activeVideo.video_id)
+      setCriticalFlags(refreshed.items)
+      setReviewSnapshots(current =>
+        current.map(snapshot =>
+          snapshot.videoId === activeVideo.video_id && pending.some(item => item.id === snapshot.id) ? {...snapshot, saved: true} : snapshot,
+        ),
+      )
+      setMessage(`${pending.length} Review-Frame(s) als Trainingsfeedback gespeichert.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Review-Frames konnten nicht gespeichert werden')
+    } finally {
+      setReviewSaving(false)
+    }
+  }
 
   const setBrushPixel = (values: number[], x: number, y: number) => {
     if (!activeVideo) return values
@@ -470,16 +731,36 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     if (!activeVideo) return
     const bounded = Math.max(0, Math.min(activeVideo.total_frames - 1, next))
     videoRef.current?.pause()
+    setReversePlaying(false)
     if (videoRef.current) videoRef.current.currentTime = bounded / activeVideo.fps
     setPlaying(false)
     setFrameIndex(bounded)
   }
 
-  const togglePlayback = () => {
+  const seekTime = (seconds: number) => {
+    if (!activeVideo) return
+    // Der Regler bewegt sich in 10-ms-Schritten; die Maske bleibt auf dem
+    // zugehörigen Quellframe eingerastet, damit Video und Analyse synchron sind.
+    seekFrame(Math.round(seconds * activeVideo.fps))
+  }
+
+  const toggleForwardPlayback = () => {
     const video = videoRef.current
     if (!video || !analysisResult) return
+    setReversePlaying(false)
     if (video.paused) void video.play()
     else video.pause()
+  }
+
+  const toggleReversePlayback = () => {
+    const video = videoRef.current
+    if (!video || !analysisResult) return
+    if (reversePlaying) {
+      setReversePlaying(false)
+      return
+    }
+    video.pause()
+    setReversePlaying(true)
   }
 
   if (!data)
@@ -505,7 +786,13 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
           <h1>KI-Modellzentrum</h1>
           <p>Ein gemeinsames CPU-Basismodell aus allen bisher bestätigten Weglabels — dazu die videobasierte Terrainklassifizierung.</p>
         </div>
+        <button className="global-refinement-nav" onClick={onOpenRefinement}>REFINEMENTS →</button>
       </header>
+      <details className="global-dashboard-section">
+        <summary>
+          <span>Trainingsdaten und globales Training</span>
+          <small>{dataset.totals.missions} Missionen · {dataset.totals.confirmed_frames} Label-Frames</small>
+        </summary>
       <section className="global-dataset-panel">
         <div className="global-dataset-head">
           <div>
@@ -559,6 +846,12 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
           </div>
         )}
       </section>
+      </details>
+      <details className="global-dashboard-section">
+        <summary>
+          <span>Aktives globales Modell</span>
+          <small>{model ? `Validierung ${model.validation_metrics.symmetric_score.toFixed(1)} / 100` : 'Noch kein Modell'}</small>
+        </summary>
       <section className="global-result-panel">
         <div className="section-head">
           <h2>Aktives globales Modell</h2>
@@ -617,6 +910,12 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
           </div>
         )}
       </section>
+      </details>
+      <details className="global-dashboard-section">
+        <summary>
+          <span>Videoanalyse und Wiedergabe</span>
+          <small>{analysisResult ? 'Analyse bereit' : analysisStatus?.status === 'running' ? 'Analyse läuft' : 'Video wählen'}</small>
+        </summary>
       <section className="global-analysis-player">
         <div className="section-head">
           <h2>Globale Videoanalyse und Wiedergabe</h2>
@@ -713,6 +1012,13 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                       onPlay={() => setPlaying(true)}
                       onPause={() => setPlaying(false)}
                       onEnded={() => setPlaying(false)}
+                      title={
+                        showFeedbackBrush
+                          ? 'Fehler-Pinsel ist aktiv'
+                          : analysisResult
+                            ? 'Nutze die Tasten unter dem Video, um einen Fehlerframe direkt zu speichern oder einen Fehlerbereich zu erfassen.'
+                            : 'Nach Abschluss der Videoanalyse können Review-Frames erfasst werden'
+                      }
                     />
                   )}
                   <canvas ref={canvasRef} style={{opacity: layer.mask ? maskOpacity : 0}} />
@@ -731,7 +1037,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                   <CorridorOverlay
                     check={planner.check}
                     activeCorridor={planner.activeCorridor}
-                    onSelectCorridor={planner.setSelected}
+                    onSelectCorridor={planner.toggleSelected}
                     proposal={planner.corridorProposal}
                     draft={planner.draft}
                     planning={planning}
@@ -756,20 +1062,45 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                   <button disabled={!analysisResult || frameIndex <= 0} onClick={() => seekFrame(frameIndex - 1)}>
                     ←
                   </button>
-                  <button disabled={!analysisResult} onClick={togglePlayback}>
-                    {playing ? '❚❚ PAUSE' : '▶ PLAY'}
-                  </button>
+                  <div className="global-play-directions" role="group" aria-label="Videowiedergabe">
+                    <button
+                      type="button"
+                      disabled={!analysisResult || frameIndex <= 0}
+                      aria-pressed={reversePlaying}
+                      onClick={toggleReversePlayback}
+                    >
+                      {reversePlaying ? '❚❚ ZURÜCK' : '◀ ZURÜCK'}
+                    </button>
+                    <button type="button" disabled={!analysisResult} aria-pressed={playing && !reversePlaying} onClick={toggleForwardPlayback}>
+                      {playing && !reversePlaying ? '❚❚ PAUSE' : '▶ VORWÄRTS'}
+                    </button>
+                  </div>
+                  <div className="global-speed-boost" role="group" aria-label="Wiedergabegeschwindigkeit">
+                    <span>Tempo</span>
+                    <input
+                      aria-label="Wiedergabegeschwindigkeit"
+                      type="range"
+                      min="0"
+                      max={playbackSpeeds.length - 1}
+                      step="1"
+                      value={Math.max(0, playbackSpeeds.indexOf(speed))}
+                      disabled={!analysisResult}
+                      onChange={event => setPlaybackSpeed(playbackSpeeds[+event.target.value])}
+                    />
+                    <output>{playbackSpeedLabel(speed)}</output>
+                  </div>
                   <input
-                    aria-label="Globaler Analyseframe"
+                    aria-label="Präzise Zeitposition"
                     type="range"
                     min="0"
-                    max={Math.max(0, (activeVideo?.total_frames ?? 1) - 1)}
-                    value={frameIndex}
+                    max={Math.max(0, activeVideo ? (activeVideo.total_frames - 1) / activeVideo.fps : 0)}
+                    step="0.01"
+                    value={activeVideo ? frameIndex / activeVideo.fps : 0}
                     disabled={!analysisResult}
-                    onChange={event => seekFrame(+event.target.value)}
+                    onChange={event => seekTime(+event.target.value)}
                   />
                   <span>
-                    Frame {frameIndex + 1} / {(activeVideo?.total_frames ?? 0).toLocaleString('de-DE')}
+                    {(activeVideo ? frameIndex / activeVideo.fps : 0).toFixed(2)} s · Frame {frameIndex + 1} / {(activeVideo?.total_frames ?? 0).toLocaleString('de-DE')}
                   </span>
                   <button
                     disabled={!analysisResult || !activeVideo || frameIndex >= activeVideo.total_frames - 1}
@@ -778,8 +1109,144 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                     →
                   </button>
                 </div>
+                <div className="global-paused-actions" aria-label="Video- und Frame-Erfassung">
+                  <button
+                    type="button"
+                    disabled={!analysisResult || errorIntervalSaving || reversePlaying}
+                      onClick={() => void toggleVideoErrorRecording()}
+                  >
+                    {errorIntervalStartMs === null ? 'VIDEO STARTEN' : 'VIDEO BEENDEN & SPEICHERN'}
+                  </button>
+                  <button type="button" disabled={!analysisResult || showFeedbackBrush || reviewSaving || playing || reversePlaying} onClick={() => void saveCurrentReviewFrame()}>
+                    FALSCHEN FRAME DIREKT SPEICHERN
+                  </button>
+                </div>
               </div>
               <aside className="global-player-controls">
+                <section className="global-review-gallery" aria-label="Gespeicherte Review-Frames">
+                  <div className="global-review-gallery-head">
+                    <div>
+                      <span>QUICK REVIEW</span>
+                      <b>Frame-Referenzen</b>
+                    </div>
+                    <small>{currentReviewSnapshots.length} erfasst</small>
+                  </div>
+                  <p>
+                    Einzelne falsche Frames werden mit der rechten Taste sofort gespeichert. „Video starten“ erfasst dagegen erst beim anschließenden „Video beenden & speichern“ den Bereich zwischen Start- und Endframe. Es werden keine Bildkopien oder Videos abgelegt.
+                  </p>
+                  {!playing && !reversePlaying && pausedFrameReference && (
+                    <div className={`global-review-current-stamp ${pausedFrameReference.review ? 'marked' : ''}`}>
+                      <span>AKTUELL PAUSIERT</span>
+                      <b>Frame {frameIndex + 1} · {(pausedFrameReference.timestampMs / 1000).toFixed(2)} s</b>
+                      <small>
+                        {pausedFrameReference.review
+                          ? pausedFrameReference.review.saved
+                            ? 'Diese Referenz ist dauerhaft gespeichert.'
+                            : 'Vorgemerkt, aber noch nicht dauerhaft gespeichert.'
+                          : 'Noch nicht vorgemerkt oder gespeichert.'}
+                      </small>
+                    </div>
+                  )}
+                  {reviewFrameRange && (
+                    <div className="global-review-range">
+                      Referenzbereich: Frame {reviewFrameRange.first + 1} bis {reviewFrameRange.last + 1}
+                    </div>
+                  )}
+                  {errorIntervalStartMs !== null && (
+                    <div className="global-review-interval-active">
+                      <i /> Fehlerintervall läuft seit {(errorIntervalStartMs / 1000).toFixed(1)} s · „Video beenden & speichern“ zum Abschließen
+                    </div>
+                  )}
+                  {currentReviewSnapshots.length ? (
+                    <>
+                      <div className="global-review-snapshot-list">
+                        {currentReviewSnapshots.map(snapshot => (
+                          <article key={snapshot.id} className={snapshot.saved ? 'saved' : ''}>
+                            <button
+                              type="button"
+                              className="global-review-thumbnail"
+                              onClick={() => seekFrame(snapshot.frameIndex)}
+                              title={`Frame ${snapshot.frameIndex + 1} öffnen`}
+                            >
+                              <span>ÖFFNEN<br />FRAME {snapshot.frameIndex + 1}</span>
+                            </button>
+                            <div>
+                              <b>Frame {snapshot.frameIndex + 1}</b>
+                              <small>{(snapshot.timestampMs / 1000).toFixed(1)} s {snapshot.saved ? '· gespeichert' : '· offen'}</small>
+                              <div className="global-review-kind">
+                                {(Object.keys(reviewKindLabel) as ReviewKind[]).map(kind => (
+                                  <button
+                                    key={kind}
+                                    type="button"
+                                    className={snapshot.kind === kind ? 'active' : ''}
+                                    disabled={snapshot.saved}
+                                    onClick={() => setReviewKind(snapshot.id, kind)}
+                                  >
+                                    {kind === 'incorrect' ? 'Nicht korrekt' : 'Erheblich'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="global-review-remove"
+                              disabled={reviewSaving}
+                              onClick={() => void removeReviewSnapshot(snapshot)}
+                              aria-label={`Frame ${snapshot.frameIndex + 1} aus Review entfernen`}
+                            >
+                              ×
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="global-review-save"
+                        disabled={reviewSaving || !currentReviewSnapshots.some(snapshot => !snapshot.saved)}
+                        onClick={() => void saveReviewSnapshots()}
+                      >
+                        {reviewSaving ? 'REFERENZEN WERDEN GESPEICHERT …' : 'AUSWAHL DAUERHAFT SPEICHERN'}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="global-review-empty">Noch keine Frames erfasst.</div>
+                  )}
+                  {activeVideo && (
+                    <details className="global-review-video">
+                      <summary>Originalvideo hier ansehen</summary>
+                      <video
+                        controls
+                        muted
+                        playsInline
+                        preload="metadata"
+                        src={`/api/v1/missions/${selectedMissionId}/videos/${activeVideo.video_id}/content`}
+                      />
+                    </details>
+                  )}
+                  {savedVideoRanges.length > 0 && (
+                    <section className="global-saved-video-ranges" aria-label="Gespeicherte Videobereiche">
+                      <b>Gespeicherte Videobereiche</b>
+                      {savedVideoRanges.map(range => (
+                        <div key={range.id}>
+                          <button type="button" onClick={() => seekFrame(Math.round((range.start_ms / 1000) * (activeVideo?.fps ?? 1)))}>
+                            {`${(range.start_ms / 1000).toFixed(1)} s – ${(range.end_ms / 1000).toFixed(1)} s`}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={errorIntervalSaving}
+                            onClick={() => void removeSavedVideoRange(range)}
+                            aria-label={`Videobereich ${(range.start_ms / 1000).toFixed(1)} bis ${(range.end_ms / 1000).toFixed(1)} Sekunden löschen`}
+                          >
+                            Löschen
+                          </button>
+                        </div>
+                      ))}
+                    </section>
+                  )}
+                </section>
+                <details className="global-control-section">
+                  <summary>Flächenidentifizierung und Masken</summary>
+                  <div className="global-control-content">
                 <div className="global-mask-switches">
                   <label>
                     <input type="checkbox" checked={showGrades} onChange={event => setShowGrades(event.target.checked)} />
@@ -803,7 +1270,24 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                     />
                     <span>Label-Maske anzeigen</span>
                   </label>
+                  <label>
+                    Masken-Deckkraft · {Math.round(maskOpacity * 100)} %
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.9"
+                      step="0.05"
+                      value={maskOpacity}
+                      disabled={!analysisResult || (!showAiMask && !showLabelMask)}
+                      onChange={event => setMaskOpacity(+event.target.value)}
+                    />
+                  </label>
                 </div>
+                  </div>
+                </details>
+                <details className="global-control-section">
+                  <summary>Korridore und Trajektorien</summary>
+                  <div className="global-control-content">
                 <CorridorReadout
                   planner={planner}
                   planning={planning}
@@ -812,6 +1296,11 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                   onNote={setTrajectoryNote}
                   annotator="Simon"
                 />
+                  </div>
+                </details>
+                <details className="global-control-section">
+                  <summary>Fehlerfeedback</summary>
+                  <div className="global-control-content">
                 <div className="global-feedback-panel">
                   <div className="section-head compact">
                     <h3>Fehler melden</h3>
@@ -865,26 +1354,20 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                     </small>
                   )}
                 </div>
+                  </div>
+                </details>
+                <details className="global-control-section">
+                  <summary>Wiedergabe und Frame-Details</summary>
+                  <div className="global-control-content">
                 <label>
                   Abspieltempo
-                  <select value={speed} disabled={!analysisResult} onChange={event => setSpeed(+event.target.value)}>
+                  <select value={speed} disabled={!analysisResult} onChange={event => setPlaybackSpeed(+event.target.value)}>
                     <option value="0.25">0,25×</option>
                     <option value="0.5">0,5×</option>
                     <option value="1">1×</option>
                     <option value="2">2×</option>
+                    <option value="4">4×</option>
                   </select>
-                </label>
-                <label>
-                  Masken-Deckkraft · {Math.round(maskOpacity * 100)} %
-                  <input
-                    type="range"
-                    min="0.05"
-                    max="0.9"
-                    step="0.05"
-                    value={maskOpacity}
-                    disabled={!analysisResult || (!showAiMask && !showLabelMask)}
-                    onChange={event => setMaskOpacity(+event.target.value)}
-                  />
                 </label>
                 {layer.graded && displayed && (
                   <GradeLegend ontology={displayed.grade_ontology} mask={displayed.grade_mask} grading={displayed.grading} />
@@ -925,13 +1408,22 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                       analysiert.
                     </span>
                   </div>
-                )}
+                  )}
+                  </div>
+                </details>
               </aside>
             </div>
           </>
         )}
       </section>
-      <TerrainModelPanel />
+      </details>
+      <details className="global-dashboard-section">
+        <summary>
+          <span>Terrainmodell</span>
+          <small>Untergrundklassen und Video-Vorhersage</small>
+        </summary>
+        <TerrainModelPanel />
+      </details>
     </div>
   )
 }

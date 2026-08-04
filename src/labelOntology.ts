@@ -12,6 +12,7 @@ export type LabelShape = {
   origin: 'manual' | 'model_proposal' | 'manual_corrected' | 'human_confirmed'
   hard_negative: boolean
   note: string
+  uncertainty_reason?: string
   /** Zeitliche Verkettung: dieselbe Stelle über mehrere Frames hinweg. */
   tracking_id?: string | null
   carried_from_frame?: number | null

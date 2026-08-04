@@ -28,7 +28,7 @@ export default function CorridorReadout({
     calibration,
     setCalibration,
     activeCorridor,
-    setSelected,
+    toggleSelected,
     corridorProposal,
     unchangedFromProposal,
     adopt,
@@ -97,7 +97,7 @@ export default function CorridorReadout({
               <article
                 key={corridor.corridor}
                 className={`${corridor.status} ${corridor.corridor === activeCorridor ? 'active' : ''}`}
-                onClick={() => setSelected(corridor.corridor)}
+                onClick={() => toggleSelected(corridor.corridor)}
               >
                 <b>{corridor.label}</b>
                 <strong>{corridor.status_label.toUpperCase()}</strong>
@@ -107,40 +107,29 @@ export default function CorridorReadout({
             ))}
           </div>
           <small className="corridor-note">
-            Korridor anklicken — hier oder direkt im Bild — um ihn auszuwählen. Der gewählte Korridor ist im Video hervorgehoben.
+            Wähle genau einen Korridor. Nur der gewählte Korridor und seine Trajektorie werden im Video eingeblendet; ein weiterer Klick blendet ihn wieder aus.
           </small>
 
           <div className="corridor-geometry">
             <div>
-              <span>Fluchtpunkt</span>
-              <b>
-                x {number(check.decomposition.vanishing_point.x, 1)} · y {number(check.decomposition.vanishing_point.y, 1)}
-              </b>
-              <small>
-                {check.decomposition.vanishing_point.source === 'path_edge_line_intersection'
-                  ? `aus ${check.decomposition.vanishing_point.rows_used} Wegrandzeilen gefittet`
-                  : 'Notlösung, kein Fit aus den Wegrändern'}
-              </small>
-            </div>
-            <div>
-              <span>Nicht ausgewertet</span>
-              <b>{Math.round(check.decomposition.irrelevant_zone.image_fraction_skipped * 100)} %</b>
-              <small>{check.decomposition.irrelevant_zone.reason}</small>
+              <span>Ausgewertetes Nahfeld</span>
+              <b>{Math.round((1 - check.region.image_fraction_skipped) * 100)} % des Bildes</b>
+              <small>{check.region.reason}</small>
             </div>
             <div>
               <span>Streifenbreite</span>
               <b>{number(check.strip.required_width_m)} m</b>
-              <small>unten {number(check.strip.required_width_px_at_bottom, 0)} px, zum Fluchtpunkt hin linear schmaler</small>
+              <small>{number(check.strip.required_width_px_at_bottom, 0)} px · konstante Breite im Nahfeld</small>
             </div>
           </div>
 
           <div className="trajectory-planner">
             <div className="section-head compact">
               <h3>Trajektorie planen</h3>
-              <p>Der Vorschlag legt je Zeile die Mitte des breitesten befahrbaren Laufs. Ziehe die Punkte, um ihn zu verbessern.</p>
+              <p>Nach Auswahl eines Korridors zeigt der Vorschlag je Zeile die Mitte des breitesten befahrbaren Laufs.</p>
             </div>
             <label className="trajectory-toggle">
-              <input type="checkbox" checked={planning} onChange={event => onTogglePlanning(event.target.checked)} />
+              <input type="checkbox" checked={planning} disabled={!activeCorridor} onChange={event => onTogglePlanning(event.target.checked)} />
               <span>Bearbeiten: Klick setzt einen Punkt, Rechtsklick entfernt ihn</span>
             </label>
             <div className="trajectory-actions">

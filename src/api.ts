@@ -34,9 +34,9 @@ import type {
 } from './types'
 export type Survey = {
   name: string
-  start: Point
-  end: Point
-  route: Point[]
+  start?: Point | null
+  end?: Point | null
+  route?: Point[]
   movement_start?: string
   movement_end?: string
   pauses: {start_seconds: number; end_seconds: number; note: string}[]
@@ -134,26 +134,45 @@ export async function deleteOffPathInterval(missionId: string, videoId: string, 
   const r = await fetch(`/api/v1/missions/${missionId}/off-path-intervals/${videoId}/${intervalId}`, {method: 'DELETE'})
   if (!r.ok && r.status !== 404) throw new Error('Intervall konnte nicht gelöscht werden')
 }
-export async function getTrajectory(missionId: string, videoId: string, frameIndex: number): Promise<StoredTrajectory | null> {
+type TrajectoryPayload = {
+  timestamp_ms: number
+  points: number[][]
+  corridor: CorridorId | null
+  origin: 'model_proposal' | 'manual_edit' | 'manual'
+  note: string
+  annotator: string
+}
+export async function listTrajectories(missionId: string, videoId: string, frameIndex: number): Promise<StoredTrajectory[]> {
   const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`)
-  if (r.status === 404) return null
-  if (!r.ok) throw new Error('Trajektorie konnte nicht geladen werden')
+  if (!r.ok) throw new Error('Trajektorien konnten nicht geladen werden')
   return r.json()
 }
-export async function saveTrajectory(
+export async function createTrajectory(
   missionId: string,
   videoId: string,
   frameIndex: number,
-  payload: {
-    timestamp_ms: number
-    points: number[][]
-    corridor: CorridorId | null
-    origin: 'model_proposal' | 'manual_edit' | 'manual'
-    note: string
-    annotator: string
-  },
+  payload: TrajectoryPayload,
 ): Promise<StoredTrajectory> {
   const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  let body: any = {}
+  try {
+    body = await r.json()
+  } catch {}
+  if (!r.ok) throw new Error(body.detail || 'Trajektorie konnte nicht gespeichert werden')
+  return body
+}
+export async function updateTrajectory(
+  missionId: string,
+  videoId: string,
+  frameIndex: number,
+  trajectoryId: string,
+  payload: TrajectoryPayload,
+): Promise<StoredTrajectory> {
+  const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}/${trajectoryId}`, {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
@@ -165,8 +184,8 @@ export async function saveTrajectory(
   if (!r.ok) throw new Error(body.detail || 'Trajektorie konnte nicht gespeichert werden')
   return body
 }
-export async function deleteTrajectory(missionId: string, videoId: string, frameIndex: number): Promise<void> {
-  const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`, {method: 'DELETE'})
+export async function deleteTrajectory(missionId: string, videoId: string, frameIndex: number, trajectoryId: string): Promise<void> {
+  const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}/${trajectoryId}`, {method: 'DELETE'})
   if (!r.ok && r.status !== 404) throw new Error('Trajektorie konnte nicht gelöscht werden')
 }
 export async function getRoiProfile(missionId: string, videoId: string): Promise<RoiProfile> {
@@ -206,6 +225,17 @@ export async function getLabelOntology(): Promise<LabelOntology> {
   const r = await fetch('/api/v1/label-ontology')
   if (!r.ok) throw new Error('Labelklassen konnten nicht geladen werden')
   return r.json()
+}
+export async function getProblemReasons(): Promise<{items: {value: string; label: string; uses: number}[]}> {
+  const r = await fetch('/api/v1/problem-reasons')
+  if (!r.ok) throw new Error('Problemzonen-Gründe konnten nicht geladen werden')
+  return r.json()
+}
+export async function createProblemReason(label: string): Promise<{value: string; label: string; uses: number}> {
+  const r = await fetch('/api/v1/problem-reasons', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({label})})
+  const body = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(body.detail || 'Problemzonen-Grund konnte nicht erstellt werden')
+  return body
 }
 export async function getRegistryRuns(): Promise<RegistryListing> {
   const r = await fetch('/api/v1/registry/runs')

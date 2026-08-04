@@ -1,0 +1,1052 @@
+{
+  "schema_version": "3.0",
+  "mission_id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+  "video_id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+  "frame_index": 10,
+  "timestamp_ms": 337,
+  "source_frame_hash": "04d691bb542d450393225479461a18536734da9f80fe6e46fcc4b2676eff41c4",
+  "polygons": [
+    {
+      "id": "traversable-3",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.4633330929647442,
+          0.05966015053200562
+        ],
+        [
+          0.482094057090202,
+          0.06209546802635037
+        ],
+        [
+          0.4816130067280108,
+          0.15517871447686057
+        ],
+        [
+          0.4830217192503022,
+          0.23592261839424963
+        ],
+        [
+          0.4586222769800103,
+          0.277569941200055
+        ],
+        [
+          0.496657848254381,
+          0.3262178708792805
+        ],
+        [
+          0.46788915965347594,
+          0.33097739632112855
+        ],
+        [
+          0.4458895742527839,
+          0.339544542116455
+        ],
+        [
+          0.17176329046799726,
+          0.793888751450894
+        ],
+        [
+          0.15991736109117072,
+          0.8595701949162557
+        ],
+        [
+          0.2225315592258252,
+          0.7853216066510642
+        ],
+        [
+          0.2631461742320876,
+          0.7767544618512344
+        ],
+        [
+          0.3156067186151765,
+          0.7634277921626103
+        ],
+        [
+          0.2225315592258252,
+          0.7862735116288231
+        ],
+        [
+          0.16160963671643166,
+          0.86432971980505
+        ],
+        [
+          0.7759056886861501,
+          0.86432971980505
+        ],
+        [
+          0.9925169687195493,
+          0.7310630229188089
+        ],
+        [
+          0.8723653993260231,
+          0.28747530328317744
+        ],
+        [
+          0.691269565260503,
+          0.4785226850184176
+        ],
+        [
+          0.45773550485315656,
+          0.3547750235303687
+        ],
+        [
+          0.48311964185395506,
+          0.36524597950243437
+        ],
+        [
+          0.518657433655073,
+          0.3795245558279785
+        ],
+        [
+          0.5575797770562974,
+          0.3957069423302618
+        ],
+        [
+          0.5897330172573089,
+          0.41569694918602357
+        ],
+        [
+          0.6083480510578945,
+          0.42997552551156765
+        ],
+        [
+          0.6252708090584268,
+          0.44615791201385097
+        ],
+        [
+          0.6540394976593318,
+          0.46043648833939504
+        ],
+        [
+          0.6929618410605561,
+          0.450917437455699
+        ],
+        [
+          0.7149614264612483,
+          0.44615791201385097
+        ],
+        [
+          0.7166537022613014,
+          0.3938031321535226
+        ],
+        [
+          0.7031154958608756,
+          0.3823802710930873
+        ],
+        [
+          0.7048077716609288,
+          0.35858264388384714
+        ],
+        [
+          0.7048077716609288,
+          0.339544542116455
+        ],
+        [
+          0.7183459780613547,
+          0.3233621556141717
+        ],
+        [
+          0.7437301150621533,
+          0.3100354843769972
+        ],
+        [
+          0.7488069424623129,
+          0.2881416673444962
+        ],
+        [
+          0.7268073570616209,
+          0.26624785031199527
+        ],
+        [
+          0.6929618410605561,
+          0.23197926713068942
+        ],
+        [
+          0.6670529006244611,
+          0.19647392018997378
+        ],
+        [
+          0.6607992459159752,
+          0.1840267418855451
+        ],
+        [
+          0.6545455912074892,
+          0.16616774692701697
+        ],
+        [
+          0.6468487854124296,
+          0.1537205686225883
+        ],
+        [
+          0.6372277781686051,
+          0.14424988947791428
+        ],
+        [
+          0.6213531162162946,
+          0.12584971285397623
+        ],
+        [
+          0.603073202453028,
+          0.11096721705520278
+        ],
+        [
+          0.5770964828947017,
+          0.0793080896287211
+        ],
+        [
+          0.5924405522106672,
+          0.07334428024083196
+        ],
+        [
+          0.6216323055403515,
+          0.09085933223864258
+        ],
+        [
+          0.6545014322875224,
+          0.1252897406172827
+        ],
+        [
+          0.6708571446020242,
+          0.13719573725630144
+        ],
+        [
+          0.6968338641603504,
+          0.15234882388777984
+        ],
+        [
+          0.7184811304589557,
+          0.16533718385761847
+        ],
+        [
+          0.7437524518061923,
+          0.17610242088539016
+        ],
+        [
+          0.7962129961892812,
+          0.19323671048504973
+        ],
+        [
+          0.8199048549429342,
+          0.219890049862298
+        ],
+        [
+          0.828366233069239,
+          0.2332167195509221
+        ],
+        [
+          0.8520580918228919,
+          0.23607243448419868
+        ],
+        [
+          0.8791345018270669,
+          0.25130291412834055
+        ],
+        [
+          0.8926727068291543,
+          0.2617738688836881
+        ],
+        [
+          0.9045186362059808,
+          0.30365768790507813
+        ],
+        [
+          0.9332873218354167,
+          0.29318673314973065
+        ],
+        [
+          0.9552869049638089,
+          0.3055614978605959
+        ],
+        [
+          0.9671328343406354,
+          0.33126293226008524
+        ],
+        [
+          0.9891324174690275,
+          0.347445316881986
+        ],
+        [
+          0.9992860712205931,
+          0.37029103634819877
+        ],
+        [
+          0.9552869049638089,
+          0.7291592129632911
+        ],
+        [
+          0.9062109118312418,
+          0.7329668328743266
+        ],
+        [
+          0.8419044380713263,
+          0.7453415975851918
+        ],
+        [
+          0.7962129961892812,
+          0.7672354120736458
+        ],
+        [
+          0.7640597593093235,
+          0.7976963713619295
+        ],
+        [
+          0.7437524518061923,
+          0.8471954302053905
+        ],
+        [
+          0.38837457050139657,
+          0.758668267273816
+        ],
+        [
+          0.38837457050139657,
+          0.7120249233636315
+        ],
+        [
+          0.36129816049722163,
+          0.6682372943867237
+        ],
+        [
+          0.3071453404888718,
+          0.6787082491420713
+        ],
+        [
+          0.2309929373521299,
+          0.6844196790086244
+        ],
+        [
+          0.18191694421956284,
+          0.6653815794534471
+        ],
+        [
+          0.15145598296486606,
+          0.6396801450539578
+        ],
+        [
+          0.1429946048385614,
+          0.5949406110992911
+        ],
+        [
+          0.14468688046382233,
+          0.5530567920779009
+        ],
+        [
+          0.17345556609325818,
+          0.5140286879897875
+        ],
+        [
+          0.3003762379878281,
+          0.4740486789239151
+        ],
+        [
+          0.30883761611413274,
+          0.4416839096801137
+        ],
+        [
+          0.3071453404888718,
+          0.41503057030286544
+        ],
+        [
+          0.3172989942404374,
+          0.3978962807032059
+        ],
+        [
+          0.33083719924252486,
+          0.37029103634819877
+        ],
+        [
+          0.3579136092466998,
+          0.3560124616818158
+        ],
+        [
+          0.3596058848719607,
+          0.33602245714887957
+        ],
+        [
+          0.34945223112039514,
+          0.3103210227493902
+        ],
+        [
+          0.38289986993427694,
+          0.27378382094498177
+        ],
+        [
+          0.3921548307954221,
+          0.2274038478203349
+        ],
+        [
+          0.4243680136272548,
+          0.15166103365169595
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf68x0v-vvz6k",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "traversable-4",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.4408127468526242,
+          0.3547750235303687
+        ],
+        [
+          0.2208168928457037,
+          0.6717594179574478
+        ],
+        [
+          0.37481399065054805,
+          0.6793746586644046
+        ],
+        [
+          0.7589605972626323,
+          0.42711981024645884
+        ],
+        [
+          0.879112179066412,
+          0.2757669011956913
+        ],
+        [
+          0.943418659468435,
+          0.5365888954089636
+        ],
+        [
+          0.943418659468435,
+          0.7269699130828849
+        ],
+        [
+          0.7420378392621,
+          0.847861859305825
+        ],
+        [
+          0.37989081805070773,
+          0.7659980217060389
+        ],
+        [
+          0.3680448874503351,
+          0.6784227535760351
+        ],
+        [
+          0.68450046206029,
+          0.4756669697533088
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf69plf-q8zu0",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "restricted-5",
+      "class_id": "restricted",
+      "points": [
+        [
+          0.6540394976593318,
+          0.450917437455699
+        ],
+        [
+          0.45942778065320977,
+          0.3566788337071079
+        ],
+        [
+          0.4746582628536889,
+          0.3376407319397158
+        ],
+        [
+          0.4854041233351578,
+          0.07334428024083196
+        ],
+        [
+          0.5632487988809828,
+          0.06787082649151614
+        ],
+        [
+          0.6337321880586929,
+          0.15677876514949046
+        ],
+        [
+          0.6726545314599174,
+          0.22055640607025412
+        ],
+        [
+          0.7471146666622597,
+          0.2976607182281923
+        ],
+        [
+          0.713269150661195,
+          0.4366388611301549
+        ],
+        [
+          0.6574240492594382,
+          0.45567696289754706
+        ],
+        [
+          0.48142736605390185,
+          0.2948050029630835
+        ],
+        [
+          0.5169651578550197,
+          0.3252659657909109
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6adxw-o1xhc",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "not-traversable-6",
+      "class_id": "not_traversable",
+      "points": [
+        [
+          0.4367512011190172,
+          0.11494252873563218
+        ],
+        [
+          0.36863711001642036,
+          0.09085933223864258
+        ],
+        [
+          0.014443836282916742,
+          0.23535851122058019
+        ],
+        [
+          0.0,
+          0.5725232621784346
+        ],
+        [
+          0.355014291795901,
+          0.2955665024630542
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6b8fc-q63gf",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "not-traversable-7",
+      "class_id": "not_traversable",
+      "points": [
+        [
+          0.6177400717630602,
+          0.07991242474001095
+        ],
+        [
+          0.5535182144377546,
+          0.04159824849480022
+        ],
+        [
+          0.6235784224289972,
+          0.02079912424740011
+        ],
+        [
+          0.6897463966429483,
+          0.06458675424192666
+        ],
+        [
+          0.7967828255184577,
+          0.10071154898741105
+        ],
+        [
+          1.0,
+          0.1631089217296114
+        ],
+        [
+          1.0,
+          0.33388067870826493
+        ],
+        [
+          0.8590585659551176,
+          0.23426382047071703
+        ],
+        [
+          0.7987289424071033,
+          0.2014230979748221
+        ],
+        [
+          0.6839080459770115,
+          0.13136288998357964
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6buay-abygy",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "unknown-8",
+      "class_id": "unknown",
+      "points": [
+        [
+          0.9991789819376026,
+          0.15435139573070608
+        ],
+        [
+          0.6469318250927446,
+          0.02079912424740011
+        ],
+        [
+          0.9894483974943745,
+          0.0021893814997263274
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6c7mx-aobnx",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "unknown-9",
+      "class_id": "unknown",
+      "points": [
+        [
+          0.00860548561697987,
+          0.22550629447181172
+        ],
+        [
+          0.4659429544487016,
+          0.05035577449370553
+        ],
+        [
+          0.4386973180076628,
+          0.0010946907498631637
+        ],
+        [
+          0.0047132518396886215,
+          0.0
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6cgtt-i1kfs",
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "tall-grass-10",
+      "class_id": "tall_grass",
+      "points": [
+        [
+          0.4503740193395366,
+          0.3524904214559387
+        ],
+        [
+          0.6547162926473271,
+          0.4422550629447181
+        ],
+        [
+          0.7169920330839871,
+          0.4302134646962233
+        ],
+        [
+          0.7442376695250259,
+          0.29666119321291734
+        ],
+        [
+          0.5593565651036916,
+          0.07006020799124248
+        ],
+        [
+          0.4854041233351578,
+          0.06896551724137931
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "",
+      "uncertainty_reason": "",
+      "tracking_id": "t-msf6dwvg-xop0n",
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "roi": [
+    {
+      "id": "roi-top",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.01
+        ],
+        [
+          0.0,
+          0.01
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Oberer Bildrand, 1 % ignoriert",
+      "uncertainty_reason": "",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    },
+    {
+      "id": "roi-bottom",
+      "class_id": "roi_ignore",
+      "points": [
+        [
+          0.0,
+          0.95
+        ],
+        [
+          1.0,
+          0.95
+        ],
+        [
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0
+        ]
+      ],
+      "certainty": "certain",
+      "origin": "manual",
+      "hard_negative": false,
+      "note": "Unterer Bildrand, 5 % ignoriert",
+      "uncertainty_reason": "",
+      "tracking_id": null,
+      "carried_from_frame": null,
+      "edit": "new"
+    }
+  ],
+  "frame_size": {
+    "width": 1080,
+    "height": 1920
+  },
+  "status": "draft",
+  "annotator": "Simon",
+  "notes": "",
+  "label_mode": "linear",
+  "revision": 2,
+  "updated_at": "2026-08-04T21:35:09.379602+00:00",
+  "statistics": {
+    "polygon_count": 8,
+    "point_count": 143,
+    "classes": {
+      "traversable": 2,
+      "restricted": 1,
+      "not_traversable": 2,
+      "unknown": 2,
+      "tall_grass": 1
+    },
+    "layers": {
+      "core": 7,
+      "zone": 1
+    },
+    "certainty": {
+      "certain": 8
+    },
+    "origin": {
+      "manual": 8
+    },
+    "hard_negatives": 0,
+    "roi_count": 2,
+    "roi_classes": {
+      "roi_ignore": 2
+    }
+  },
+  "ontology": {
+    "schema_version": "3.0",
+    "unlabelled": {
+      "key": "unlabelled",
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "layers": [
+      {
+        "layer": "core",
+        "label": "Kernklasse",
+        "exclusive": true,
+        "classes": [
+          {
+            "class_id": "traversable",
+            "layer": "core",
+            "label": "Befahrbarer Boden",
+            "color": "#55d96f",
+            "value": 1,
+            "description": "Fester Untergrund, auf dem das Fahrzeug ohne Einschränkung fahren kann."
+          },
+          {
+            "class_id": "restricted",
+            "layer": "core",
+            "label": "Eingeschränkt befahrbar",
+            "color": "#e4c264",
+            "value": 4,
+            "description": "Befahrbar, aber mit Risiko oder nur langsam — etwa Matsch, loser Schotter, hohes Gras."
+          },
+          {
+            "class_id": "not_traversable",
+            "layer": "core",
+            "label": "Nicht befahrbar",
+            "color": "#e05b52",
+            "value": 2,
+            "description": "Sicher nicht befahrbar, unabhängig von der Ursache."
+          },
+          {
+            "class_id": "unknown",
+            "layer": "core",
+            "label": "Nicht bewertbar / verdeckt",
+            "color": "#737c78",
+            "value": 3,
+            "description": "Keine Aussage möglich: verdeckt, überbelichtet, zu unscharf."
+          }
+        ]
+      },
+      {
+        "layer": "obstacle",
+        "label": "Hindernis",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tree",
+            "layer": "obstacle",
+            "label": "Baum",
+            "color": "#2f7d4f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shrub",
+            "layer": "obstacle",
+            "label": "Busch / dichtes Gebüsch",
+            "color": "#4f9c5f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "log",
+            "layer": "obstacle",
+            "label": "Großer Ast / Baumstamm",
+            "color": "#8a6a3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "rock",
+            "layer": "obstacle",
+            "label": "Stein",
+            "color": "#8f9499",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "ditch",
+            "layer": "obstacle",
+            "label": "Graben",
+            "color": "#5b4a7a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "water",
+            "layer": "obstacle",
+            "label": "Wasser / Pfütze",
+            "color": "#3f7fbf",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "barrier",
+            "layer": "obstacle",
+            "label": "Zaun / Pfosten / harte Barriere",
+            "color": "#c94f8a",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "zone",
+        "label": "Problemzone",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "tall_grass",
+            "layer": "zone",
+            "label": "Hohes Gras",
+            "color": "#9bbf5a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "leaves",
+            "layer": "zone",
+            "label": "Laub",
+            "color": "#bf8f4a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mud",
+            "layer": "zone",
+            "label": "Matsch",
+            "color": "#7a5c3d",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "loose_gravel",
+            "layer": "zone",
+            "label": "Loser Schotter",
+            "color": "#a8a49a",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "mixed_surface",
+            "layer": "zone",
+            "label": "Gemischter Untergrund",
+            "color": "#b0975f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "narrow_passage",
+            "layer": "zone",
+            "label": "Engstelle",
+            "color": "#d98f3f",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "partial_occlusion",
+            "layer": "zone",
+            "label": "Teilverdeckung",
+            "color": "#6f7a86",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "shadow",
+            "layer": "zone",
+            "label": "Schatten",
+            "color": "#4a5158",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "blur",
+            "layer": "zone",
+            "label": "Unscharfer Bereich",
+            "color": "#6a6f74",
+            "value": null,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "layer": "roi",
+        "label": "Auswertungsbereich",
+        "exclusive": false,
+        "classes": [
+          {
+            "class_id": "roi_interest",
+            "layer": "roi",
+            "label": "Interessiert",
+            "color": "#67e6f1",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_ignore",
+            "layer": "roi",
+            "label": "Nicht interessiert / ignorieren",
+            "color": "#3a4149",
+            "value": null,
+            "description": ""
+          },
+          {
+            "class_id": "roi_uncertain",
+            "layer": "roi",
+            "label": "ROI unsicher",
+            "color": "#c9a94f",
+            "value": null,
+            "description": ""
+          }
+        ]
+      }
+    ],
+    "certainty": [
+      {
+        "value": "certain",
+        "label": "Sicher"
+      },
+      {
+        "value": "uncertain",
+        "label": "Unsicher"
+      },
+      {
+        "value": "partially_occluded",
+        "label": "Teilweise verdeckt"
+      }
+    ],
+    "origin": [
+      {
+        "value": "manual",
+        "label": "Von Hand gesetzt"
+      },
+      {
+        "value": "model_proposal",
+        "label": "Automatisch vorgeschlagen"
+      },
+      {
+        "value": "manual_corrected",
+        "label": "Vorschlag von Hand korrigiert"
+      },
+      {
+        "value": "human_confirmed",
+        "label": "Vom Menschen bestätigt"
+      }
+    ],
+    "notes": [
+      "Maskenwert 0 heisst 'nicht markiert' und wird im Training ignoriert, nicht 'nicht befahrbar'.",
+      "Hindernisse und Problemzonen tragen keinen Maskenwert: sie erklaeren eine Fläche, statt sie zu ersetzen.",
+      "Der Auswertungsbereich schneidet das Bild nicht zu — das Original bleibt vollständig erhalten."
+    ]
+  }
+}
