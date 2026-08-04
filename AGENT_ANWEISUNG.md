@@ -17,14 +17,14 @@ Die bestehende binäre Maske und der Refinement-Workflow bleiben unverändert er
 
 RLE-kodiert wie die bestehende Maske (`_encode_binary_rle` ist bereits generisch für Mehrwertmasken).
 
-| Wert | Schlüssel | Bedeutung (deutsches UI-Label) | Farbe |
-|---|---|---|---|
-| 0 | `unrated` | Nicht bewertet / Umgebung (transparent) | `#00000000` |
-| 1 | `safe` | Sicher befahrbar | `#1e8c46` |
-| 2 | `good` | Gut befahrbar | `#55d96f` |
-| 3 | `marginal` | Knapp befahrbar | `#a3ecb4` |
-| 4 | `risky` | Potenziell befahrbar, mit Risiko | `#f08c3a` |
-| 5 | `problem` | Problemzone / Hindernis | `#e05b52` |
+| Wert | Schlüssel  | Bedeutung (deutsches UI-Label)          | Farbe       |
+| ---- | ---------- | --------------------------------------- | ----------- |
+| 0    | `unrated`  | Nicht bewertet / Umgebung (transparent) | `#00000000` |
+| 1    | `safe`     | Sicher befahrbar                        | `#1e8c46`   |
+| 2    | `good`     | Gut befahrbar                           | `#55d96f`   |
+| 3    | `marginal` | Knapp befahrbar                         | `#a3ecb4`   |
+| 4    | `risky`    | Potenziell befahrbar, mit Risiko        | `#f08c3a`   |
+| 5    | `problem`  | Problemzone / Hindernis                 | `#e05b52`   |
 
 Diese Hexwerte sind vorgegeben (abgestimmt auf die bestehende UI-Palette). Legende und Ontologie in der API-Antwort mitliefern (deutsche Labels, englische Schlüssel — wie `GROUND_TRUTH_ONTOLOGY` in `annotations.py`).
 

@@ -38,9 +38,8 @@ export const AI_BINARY_PALETTE: MaskPalette = {0: [0, 0, 0, 0], 1: [64, 220, 235
 
 export function hexToRgba(hex: string, alpha?: number): Rgba {
   const value = hex.replace('#', '')
-  const channels = value.length >= 6
-    ? [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)]
-    : [0, 0, 0]
+  const channels =
+    value.length >= 6 ? [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)] : [0, 0, 0]
   const encoded = value.length === 8 ? parseInt(value.slice(6, 8), 16) : 255
   return [channels[0], channels[1], channels[2], alpha ?? encoded]
 }

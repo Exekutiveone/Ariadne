@@ -48,12 +48,12 @@ Pytest **muss** als `python -m pytest` laufen, damit das Wurzelverzeichnis auf
 
 ## Daten: was versioniert ist und was nicht
 
-| Pfad | Groesse | In Git? |
-|---|---|---|
-| `data/missions/*/ground_truth`, `path_refinements` | 0,7 MB | **ja** — Handarbeit, nicht reproduzierbar |
-| `data/missions/*/videos` | 3,1 GB | nein — bleiben dauerhaft lokal |
-| `data/missions/*/derived` | 470 MB | nein — bei jedem Lauf neu berechnet |
-| `data/runtime_cache`, `data/Mission1`, `data/Mission 2` | 3,1 GB | nein — Cache bzw. Duplikate |
+| Pfad                                                    | Groesse | In Git?                                   |
+| ------------------------------------------------------- | ------- | ----------------------------------------- |
+| `data/missions/*/ground_truth`, `path_refinements`      | 0,7 MB  | **ja** — Handarbeit, nicht reproduzierbar |
+| `data/missions/*/videos`                                | 3,1 GB  | nein — bleiben dauerhaft lokal            |
+| `data/missions/*/derived`                               | 470 MB  | nein — bei jedem Lauf neu berechnet       |
+| `data/runtime_cache`, `data/Mission1`, `data/Mission 2` | 3,1 GB  | nein — Cache bzw. Duplikate               |
 
 **Entschieden (03.08.2026): Videos und Missionsdaten bleiben lokal.** Das Repo
 ist ausschliesslich Dokumentation und Versionierung des Codes; die Anwendung

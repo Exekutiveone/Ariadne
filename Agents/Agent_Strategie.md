@@ -2,7 +2,7 @@
 
 ### Wahrnehmungs- und Autonomiemodul zwischen ARGUS (Fahrzeug) und Athene (Analytics-Plattform)
 
-*Stand: 03.08.2026 — strukturiert nach Umsetzungshorizont*
+_Stand: 03.08.2026 — strukturiert nach Umsetzungshorizont_
 
 Dieses Dokument ist die langfristige Referenz für das AIGIS-Konzept. Es ist in zwei Teile geteilt:
 
@@ -23,12 +23,12 @@ AIGIS ist der Arbeitstitel für das Bilderkennungsmodul von ARGUS und langfristi
 
 ### Fahrzeuggeometrie (Konstanten für alle geometrischen Berechnungen)
 
-| Parameter | Wert | Charakter |
-|---|---|---|
-| Fahrzeugbreite | 30–40 cm | fix |
-| Lenk-/Sicherheitsbereich | + 10 cm | fix erforderlich |
-| Wendekreis | ~1 m | weiches Kriterium |
-| Gewichtsklasse | ~40 kg | Kontext für Befahrbarkeit |
+| Parameter                | Wert     | Charakter                 |
+| ------------------------ | -------- | ------------------------- |
+| Fahrzeugbreite           | 30–40 cm | fix                       |
+| Lenk-/Sicherheitsbereich | + 10 cm  | fix erforderlich          |
+| Wendekreis               | ~1 m     | weiches Kriterium         |
+| Gewichtsklasse           | ~40 kg   | Kontext für Befahrbarkeit |
 
 ### Kamerasetup ARGUS (Zielzustand)
 
@@ -38,7 +38,7 @@ AIGIS ist der Arbeitstitel für das Bilderkennungsmodul von ARGUS und langfristi
 
 ### Aktuelle Datenbasis
 
-- ~45 Min. Handy-Video (davon ~20 Min. gelabelt), nicht georeferenziert, nach *unten* geneigt.
+- ~45 Min. Handy-Video (davon ~20 Min. gelabelt), nicht georeferenziert, nach _unten_ geneigt.
 - **Bekannter Domain Gap:** Handy-Optik/-Winkel ≠ spätere ARGUS-Kameras. Bei allem, was jetzt trainiert wird, mitdenken; nichts hart auf die Handy-Perspektive optimieren.
 
 ---
@@ -58,7 +58,7 @@ Grundlegendste inhaltliche Erkennungsebene. Klassenliste (offen erweiterbar):
 - Wiese hoch (erheblich erschwerte Fahrt)
 - Sammelkategorien für den Einstieg: **Mischkategorie** (Mehrfachauswahl beteiligter Untergründe) und **Klar definierter Weg**
 
-Wichtige Trennung: *semantische Klasse* (was ist es?) ≠ *Befahrbarkeit* (kann dieses Fahrzeug dort fahren?). Beides wird getrennt modelliert. Aktueller Modellstand: binäre Befahrbarkeits-Segmentierung — Ausbau Richtung dreistufig (befahrbar / unsicher / nicht befahrbar) und Richtung Untergrundklassen.
+Wichtige Trennung: _semantische Klasse_ (was ist es?) ≠ _Befahrbarkeit_ (kann dieses Fahrzeug dort fahren?). Beides wird getrennt modelliert. Aktueller Modellstand: binäre Befahrbarkeits-Segmentierung — Ausbau Richtung dreistufig (befahrbar / unsicher / nicht befahrbar) und Richtung Untergrundklassen.
 
 ## A.2 Befahrbarkeits-Segmentierung inkl. Grauzone
 
@@ -121,51 +121,51 @@ Vorbereitung für das Feststeck-Protokoll aus Teil B: SQLite-Schema + simples Er
 
 > Kontext für Architekturentscheidungen. Nichts in Teil A darf diese Bausteine strukturell verbauen — aber sie werden erst umgesetzt, wenn sie explizit nach Teil A wandern. Auslöser sind jeweils vermerkt.
 
-## B.1 Bildqualitäts-Gate (Ebene 0) — *wartet auf: echte ARGUS-Kameras*
+## B.1 Bildqualitäts-Gate (Ebene 0) — _wartet auf: echte ARGUS-Kameras_
 
 Gatekeeper vor jeder Auswertung: verwackelte Frames, starke Sonneneinstrahlung/Blendung, verschmutzte oder beschädigte Linse erkennen. Mit Handy-Daten nicht sinnvoll trainierbar — die Störmuster der echten Kameras sind andere.
 
-## B.2 Volle räumliche Zonen-Zerlegung (Ebene 2) — *wartet auf: ARGUS-Kameraperspektive*
+## B.2 Volle räumliche Zonen-Zerlegung (Ebene 2) — _wartet auf: ARGUS-Kameraperspektive_
 
 - **Nahbereichs-Box (unten):** v. a. bei Fisheye/nach unten geneigten Kameras; für Trajektorienplanung irrelevant, aber präzise Ground-Truth des aktuellen Standorts (Feststeck-Kontext).
 - **Weg-Fallunterscheidung:** (a) klassischer Weg, (b) großflächiges Gelände ohne Weg, (c) Gelände mit vom Fahrzeug selbst geplantem Pfad.
 - **Seitenvegetation als eigene Klasse:** Für die Fahrt nur Border; für Athene (Vegetationsmonitoring) hochrelevant. Gleiche Pixel, zwei Konsumenten.
 
-## B.3 Szenen-Anomalien (Ebene 4) — *wartet auf: stabile Ebene-1-Basis + mehr Daten*
+## B.3 Szenen-Anomalien (Ebene 4) — _wartet auf: stabile Ebene-1-Basis + mehr Daten_
 
 - Statische Hindernisse: Baumstämme, Objekte; feste Gegenstände > ~10 cm als Kollisionsrisiko-Schwelle.
-- Untergrund-Störungen im Weg: Pfützen, Vegetation *innerhalb* des Wegs.
+- Untergrund-Störungen im Weg: Pfützen, Vegetation _innerhalb_ des Wegs.
 - **Menschen als eigene Störklasse** — dynamisch, sicherheitskritisch, eigene Reaktionsanforderungen.
 
-## B.4 Kartenbildung — *wartet auf: fahrendes Fahrzeug*
+## B.4 Kartenbildung — _wartet auf: fahrendes Fahrzeug_
 
 1. **Stufe 1 — Lineare Karte:** Fahrt als Linie, Erkennungen sequenziell abgetragen (1D-Log; braucht nur Zeitstempel — frühester Kandidat für Teil A).
 2. **Stufe 2 — Geometrische Wegverfolgung:** Wegform rein visuell rekonstruieren (visuelle Odometrie). Entschieden: wird gebaut, **nicht** übersprungen — GPS-Ausfall ist im Wald fast der Normalfall (Abschattung/Multipath unter Kronendach, Fehler 10–30 m üblich).
 3. **Stufe 3 — Georeferenzierung.** Zielarchitektur: Fusion — GNSS als Anker wo verfügbar, dazwischen relative visuelle Verfolgung.
 
-## B.5 Sensorfusion — *wartet auf: fahrendes Fahrzeug mit Sensorik*
+## B.5 Sensorfusion — _wartet auf: fahrendes Fahrzeug mit Sensorik_
 
 - IMU/Telemetrie (relative Bewegung), Radodometrie, Magnetometer (absolute Ausrichtung, abgeschirmt).
 - Einordnung: Magnetometer ist der störanfälligste Sensor (dynamische Hard-/Soft-Iron-Störungen durch Motorstrom; Umgebung: Zäune, Leitungen, mineralhaltiger Boden) — zuverlässig erst in Fusion mit Gyro (Madgwick/Kalman). Radodometrie: Schlupf-Problem im Wald. Diese Einzelschwächen sind das stärkste Argument für die Kamera als gleichberechtigten Fusionspartner.
 
-## B.6 Simulation & Abgleich — *wartet auf: Karte (B.4)*
+## B.6 Simulation & Abgleich — _wartet auf: Karte (B.4)_
 
 Virtueller ARGUS in der Karte: vermessene Kamera-Geometrie als Sichtfeld-Kegel, Fahrzeuggeometrie als Footprint. Trajektorienplanung damit auf zwei Ebenen — reaktiv im Bildraum (A.3) und deliberativ im Kartenraum — mit gegenseitiger Validierung. Widersprüche zwischen beiden Ebenen zeigen Erkennungsfehler oder reale Weltveränderungen an.
 
-## B.7 Feststeck-Protokoll & Traversability-Learning — *wartet auf: erste Stuck-Events (Schema aus A.10 liegt bereit)*
+## B.7 Feststeck-Protokoll & Traversability-Learning — _wartet auf: erste Stuck-Events (Schema aus A.10 liegt bereit)_
 
 - Automatische Stuck-Detektion (Räder drehen, Position ändert sich nicht).
 - Operator-Messprotokoll → Datenbank (A.10). Doppelter Nutzen: Hardware-Verbesserung + Ground-Truth „wirklich nicht befahrbar".
-- Stuck-Events sind die einzigen Labels, die kein Mensch vergeben kann — Befahrbarkeit für *dieses* Fahrzeug lernt nur das Fahrzeug durch Scheitern (*self-supervised traversability learning*, vgl. BADGR).
-- **Rückwirkendes Labeln:** die letzten N Sekunden Video *vor* dem Feststecken sind das Trainingsmaterial (Anfahrtsperspektive aus 2–5 m); das Ereignis ist nur das Label.
+- Stuck-Events sind die einzigen Labels, die kein Mensch vergeben kann — Befahrbarkeit für _dieses_ Fahrzeug lernt nur das Fahrzeug durch Scheitern (_self-supervised traversability learning_, vgl. BADGR).
+- **Rückwirkendes Labeln:** die letzten N Sekunden Video _vor_ dem Feststecken sind das Trainingsmaterial (Anfahrtsperspektive aus 2–5 m); das Ereignis ist nur das Label.
 
-## B.8 Verhaltensebene — *wartet auf: autonome Fahrversuche*
+## B.8 Verhaltensebene — _wartet auf: autonome Fahrversuche_
 
 - **Recovery-Skills als diskrete Bibliothek:** Rück-und-Anlauf (hohes Gras), Reifen freilenken (Pendeln), erweiterbar. Lernaufgabe schrumpft von End-to-End-Motorsteuerung auf Skill-Auswahl (Klassifikation). Jedes Stuck-Event liefert doppelt Daten: „Untergrund X → festgesteckt" + „Skill Y gelöst / nicht gelöst".
 - **Fahrprofile pro Streckentyp:** Geschwindigkeit/Aggressivität als Parameter-Sets, gekoppelt an Ebene-1-Klassen.
 - **Missionsparameter** als oberste Vorgabe (Route, Ziel, Monitoring-Auftrag).
 
-## B.9 Systemarchitektur (Zielbild) — *wartet auf: mehr als ein Modul auf dem Fahrzeug*
+## B.9 Systemarchitektur (Zielbild) — _wartet auf: mehr als ein Modul auf dem Fahrzeug_
 
 - **State Machine / Behavior Tree** steuert die Fahrt; die KI gibt nur einen angestrebten Trajektorienpunkt vor; kleine deterministische Regler (Pure Pursuit/PID/MPC) fahren dahin.
 - **Master-Router:** erkennt Systemzustand (normale Fahrt, Grauzone, festgesteckt, Mensch erkannt) und aktiviert das passende Spezialmodul. Anfangs regelbasiert (if-Logik), später ggf. gelernt. Mehrere kleine Spezialmodelle statt eines großen (auf Edge-Hardware auch speichertechnisch besser; Modellwechsel zur Laufzeit unproblematisch).
@@ -173,7 +173,7 @@ Virtueller ARGUS in der Karte: vermessene Kamera-Geometrie als Sichtfeld-Kegel, 
 - Hauptgewinn: **Testbarkeit & Sicherheit** — jedes Modul isoliert testbar; ein schlechtes Wahrnehmungsmodell kann den deterministischen Not-Stopp nicht kompromittieren. Voraussetzung für Abnahme/Versicherung im öffentlichen Wald.
 - Bekannter Preis: **Schnittstellen** (Einheiten, Koordinatensysteme, Timing) — früh und schriftlich definieren, sobald Modul Nr. 2 existiert.
 
-## B.10 Edge-Deployment — *wartet auf: Zielhardware-Entscheidung (Hailo-8L vs. Jetson)*
+## B.10 Edge-Deployment — _wartet auf: Zielhardware-Entscheidung (Hailo-8L vs. Jetson)_
 
 Zielpfad: Cloud → lokaler PC → Edge. Hailo-8L erzwingt INT8-Quantisierung und begrenzte Operationen; Jetson ist flexibler (CUDA), aber teurer/stromhungriger. **Vor** dem nächsten größeren Training: Export-Kette (PyTorch → ONNX → Zielformat) einmal komplett mit dem aktuellen Modell durchtesten — Inkompatibilitäten sofort finden, nicht nach Monaten Training.
 

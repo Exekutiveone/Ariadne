@@ -113,7 +113,7 @@ function pointInPolygon(x: number, y: number, polygon: [number, number][]) {
   for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
     const [xi, yi] = polygon[index]
     const [xj, yj] = polygon[previous]
-    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
   return inside
 }
@@ -132,12 +132,7 @@ function tracePolygon(context: CanvasRenderingContext2D, polygon: [number, numbe
 const renderRleMask = drawMaskScaled
 const encodeGroundTruthValues = encodeRleValues
 
-function clipToEvaluatedDriveArea(
-  context: CanvasRenderingContext2D,
-  mask: TerrainMask,
-  targetWidth: number,
-  targetHeight: number,
-) {
+function clipToEvaluatedDriveArea(context: CanvasRenderingContext2D, mask: TerrainMask, targetWidth: number, targetHeight: number) {
   const cellWidth = targetWidth / mask.width
   const cellHeight = targetHeight / mask.height
   const pixelCount = mask.width * mask.height
@@ -151,7 +146,7 @@ function clipToEvaluatedDriveArea(
       const column = pixel % mask.width
       const span = Math.min(remaining, mask.width - column)
       if (value === 1 || value === 2) {
-        context.rect(column * cellWidth, row * cellHeight, span * cellWidth + .02, cellHeight + .02)
+        context.rect(column * cellWidth, row * cellHeight, span * cellWidth + 0.02, cellHeight + 0.02)
       }
       pixel += span
       remaining -= span
@@ -178,7 +173,24 @@ function drawOverlay(args: {
   gradeMask?: TerrainMask | null
   gradePalette: MaskPalette
 }) {
-  const {canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette} = args
+  const {
+    canvas,
+    mode,
+    frame,
+    terrain,
+    opacity,
+    selectedRegionId,
+    showCorridor,
+    annotationMask,
+    annotationPolygon,
+    annotationValue,
+    showAiSuggestion,
+    manualPolygons,
+    manualOpacity,
+    showManualLabels,
+    gradeMask,
+    gradePalette,
+  } = args
   const bounds = canvas.getBoundingClientRect()
   if (!bounds.width || !bounds.height) return
   const ratio = Math.min(2, window.devicePixelRatio || 1)
@@ -207,7 +219,10 @@ function drawOverlay(args: {
       context.setLineDash([])
     }
   }
-  if (mode === 'labels') {drawManualPolygons(); return}
+  if (mode === 'labels') {
+    drawManualPolygons()
+    return
+  }
   // Die Abstufung stammt aus der Live-Inferenz, nicht aus dem gespeicherten
   // Segmentierungslauf, und braucht deshalb weder frame noch terrain.
   if (mode === 'ai_grade') {
@@ -217,10 +232,13 @@ function drawOverlay(args: {
   }
   if (mode === 'original' || !frame) return
 
-  if (!terrain) {if (showManualLabels) drawManualPolygons(); return}
+  if (!terrain) {
+    if (showManualLabels) drawManualPolygons()
+    return
+  }
   if (mode === 'annotation') {
     if (showAiSuggestion) {
-      renderRleMask(context, terrain.traversability.mask, bounds.width, bounds.height, Math.min(.22, opacity), {
+      renderRleMask(context, terrain.traversability.mask, bounds.width, bounds.height, Math.min(0.22, opacity), {
         0: [115, 124, 120, 150],
         1: [85, 217, 111, 150],
         2: [231, 200, 77, 150],
@@ -228,7 +246,7 @@ function drawOverlay(args: {
       })
     }
     if (annotationMask) {
-      renderRleMask(context, annotationMask, bounds.width, bounds.height, Math.max(.48, opacity), {
+      renderRleMask(context, annotationMask, bounds.width, bounds.height, Math.max(0.48, opacity), {
         0: groundTruthStyles[0].rgba,
         1: groundTruthStyles[1].rgba,
         2: groundTruthStyles[2].rgba,
@@ -238,7 +256,8 @@ function drawOverlay(args: {
     if (annotationPolygon.length) {
       context.beginPath()
       context.moveTo(annotationPolygon[0][0] * bounds.width, annotationPolygon[0][1] * bounds.height)
-      for (let index = 1; index < annotationPolygon.length; index++) context.lineTo(annotationPolygon[index][0] * bounds.width, annotationPolygon[index][1] * bounds.height)
+      for (let index = 1; index < annotationPolygon.length; index++)
+        context.lineTo(annotationPolygon[index][0] * bounds.width, annotationPolygon[index][1] * bounds.height)
       context.strokeStyle = groundTruthStyles[annotationValue].color
       context.lineWidth = 3
       context.setLineDash([7, 5])
@@ -302,7 +321,8 @@ function drawOverlay(args: {
   if (corridor.centerline.length >= 2) {
     context.beginPath()
     context.moveTo(corridor.centerline[0][0] * bounds.width, corridor.centerline[0][1] * bounds.height)
-    for (let index = 1; index < corridor.centerline.length; index++) context.lineTo(corridor.centerline[index][0] * bounds.width, corridor.centerline[index][1] * bounds.height)
+    for (let index = 1; index < corridor.centerline.length; index++)
+      context.lineTo(corridor.centerline[index][0] * bounds.width, corridor.centerline[index][1] * bounds.height)
     context.save()
     context.strokeStyle = colour
     context.lineWidth = 4
@@ -324,7 +344,19 @@ function reasonText(reason: string) {
   return reasonLabels[reason] ?? reason.replaceAll('_', ' ')
 }
 
-export default function AnalysisView({mission, data, reconstruction, segmentation, onClose}: {mission: Mission; data: Analysis; reconstruction: Reconstruction; segmentation: Segmentation; onClose: () => void}) {
+export default function AnalysisView({
+  mission,
+  data,
+  reconstruction,
+  segmentation,
+  onClose,
+}: {
+  mission: Mission
+  data: Analysis
+  reconstruction: Reconstruction
+  segmentation: Segmentation
+  onClose: () => void
+}) {
   const [active, setActive] = useState(reconstruction.traversals[0]?.video_id ?? '')
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -352,7 +384,7 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
   const [annotationSummary, setAnnotationSummary] = useState<GroundTruthSummary | null>(null)
   const [showAiSuggestion, setShowAiSuggestion] = useState(true)
   const [showManualLabels, setShowManualLabels] = useState(false)
-  const [manualOpacity, setManualOpacity] = useState(.3)
+  const [manualOpacity, setManualOpacity] = useState(0.3)
   const [gradePrediction, setGradePrediction] = useState<PathPrediction | null>(null)
   const [gradeLoading, setGradeLoading] = useState(false)
   const [gradeMessage, setGradeMessage] = useState('')
@@ -376,21 +408,33 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
   const overallClass = terrain?.traversability.overall_class ?? 'unknown'
   const overallStyle = segmentation.terrain_ontology?.[overallClass] ?? terrainFallback[overallClass]
   const annotationWidth = terrain?.traversability.mask.width ?? 96
-  const annotationHeight = terrain?.traversability.mask.height ?? Math.max(8, Math.round(annotationWidth / Math.max(.1, aspect)))
+  const annotationHeight = terrain?.traversability.mask.height ?? Math.max(8, Math.round(annotationWidth / Math.max(0.1, aspect)))
   const annotationMask = useMemo(
     () => encodeGroundTruthValues(annotationValues, annotationWidth, annotationHeight),
     [annotationValues, annotationWidth, annotationHeight],
   )
-  const annotationCounts = useMemo(() => annotationValues.reduce((counts, value) => {
-    if (value >= 0 && value <= 3) counts[value]++
-    return counts
-  }, [0, 0, 0, 0]), [annotationValues])
+  const annotationCounts = useMemo(
+    () =>
+      annotationValues.reduce(
+        (counts, value) => {
+          if (value >= 0 && value <= 3) counts[value]++
+          return counts
+        },
+        [0, 0, 0, 0],
+      ),
+    [annotationValues],
+  )
   const annotationLabelledFraction = annotationValues.length ? 1 - annotationCounts[0] / annotationValues.length : 0
-  const manualLabels = useMemo(() => (annotationSummary?.items ?? []).filter(item => item.status !== 'skipped' && item.polygons?.length), [annotationSummary])
+  const manualLabels = useMemo(
+    () => (annotationSummary?.items ?? []).filter(item => item.status !== 'skipped' && item.polygons?.length),
+    [annotationSummary],
+  )
   const nearestManualLabel = useMemo(() => {
     if (!manualLabels.length) return undefined
     const timestamp = time * 1000
-    const nearest = manualLabels.reduce((best, item) => Math.abs(item.timestamp_ms - timestamp) < Math.abs(best.timestamp_ms - timestamp) ? item : best)
+    const nearest = manualLabels.reduce((best, item) =>
+      Math.abs(item.timestamp_ms - timestamp) < Math.abs(best.timestamp_ms - timestamp) ? item : best,
+    )
     return Math.abs(nearest.timestamp_ms - timestamp) <= 180 ? nearest : undefined
   }, [manualLabels, time])
   const manualPolygons = useMemo(() => (nearestManualLabel?.polygons ?? []).map(polygon => polygon.points), [nearestManualLabel])
@@ -427,9 +471,15 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     let cancelled = false
     setAnnotationSummary(null)
     void listGroundTruth(mission.id, active, true)
-      .then(summary => {if (!cancelled) setAnnotationSummary(summary)})
-      .catch(() => {if (!cancelled) setAnnotationSummary(null)})
-    return () => {cancelled = true}
+      .then(summary => {
+        if (!cancelled) setAnnotationSummary(summary)
+      })
+      .catch(() => {
+        if (!cancelled) setAnnotationSummary(null)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [mission.id, active])
 
   useEffect(() => {
@@ -442,7 +492,9 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       setAnnotationStatus('new')
       setAnnotationRevision(0)
       setAnnotationDirty(false)
-      return () => {cancelled = true}
+      return () => {
+        cancelled = true
+      }
     }
     setAnnotationLoading(true)
     void getGroundTruth(mission.id, active, frame.frame_index)
@@ -465,8 +517,12 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       .catch(error => {
         if (!cancelled) setAnnotationMessage(error instanceof Error ? error.message : 'Ground Truth konnte nicht geladen werden')
       })
-      .finally(() => {if (!cancelled) setAnnotationLoading(false)})
-    return () => {cancelled = true}
+      .finally(() => {
+        if (!cancelled) setAnnotationLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [mission.id, active, frame?.frame_index, terrain?.source_frame_hash])
 
   // KI-Abstufung des aktuell sichtbaren Frames. Während der Wiedergabe wird
@@ -477,20 +533,68 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     let cancelled = false
     setGradeLoading(true)
     void predictPathFrame(mission.id, traversal.video_id, gradeFrameIndex)
-      .then(prediction => {if (!cancelled) {setGradePrediction(prediction); setGradeMessage('')}})
-      .catch(error => {if (!cancelled) {setGradePrediction(null); setGradeMessage(error instanceof Error ? error.message : 'KI-Abstufung ist für diese Mission nicht verfügbar')}})
-      .finally(() => {if (!cancelled) setGradeLoading(false)})
-    return () => {cancelled = true}
+      .then(prediction => {
+        if (!cancelled) {
+          setGradePrediction(prediction)
+          setGradeMessage('')
+        }
+      })
+      .catch(error => {
+        if (!cancelled) {
+          setGradePrediction(null)
+          setGradeMessage(error instanceof Error ? error.message : 'KI-Abstufung ist für diese Mission nicht verfügbar')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setGradeLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [mode, mission.id, traversal?.video_id, gradeFrameIndex, playing])
 
   const gradePalette = useMemo(() => paletteFromGradeOntology(gradePrediction?.grade_ontology), [gradePrediction?.grade_ontology])
-  const gradeMask = mode === 'ai_grade' ? gradePrediction?.grade_mask ?? null : null
+  const gradeMask = mode === 'ai_grade' ? (gradePrediction?.grade_mask ?? null) : null
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawOverlay({canvas, mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette})
-  }, [mode, frame, terrain, opacity, selectedRegionId, showCorridor, annotationMask, annotationPolygon, annotationValue, showAiSuggestion, manualPolygons, manualOpacity, showManualLabels, gradeMask, gradePalette, overlayRevision])
+    drawOverlay({
+      canvas,
+      mode,
+      frame,
+      terrain,
+      opacity,
+      selectedRegionId,
+      showCorridor,
+      annotationMask,
+      annotationPolygon,
+      annotationValue,
+      showAiSuggestion,
+      manualPolygons,
+      manualOpacity,
+      showManualLabels,
+      gradeMask,
+      gradePalette,
+    })
+  }, [
+    mode,
+    frame,
+    terrain,
+    opacity,
+    selectedRegionId,
+    showCorridor,
+    annotationMask,
+    annotationPolygon,
+    annotationValue,
+    showAiSuggestion,
+    manualPolygons,
+    manualOpacity,
+    showManualLabels,
+    gradeMask,
+    gradePalette,
+    overlayRevision,
+  ])
 
   const choose = (videoId: string) => {
     if (mode === 'annotation' && annotationDirty) {
@@ -518,7 +622,8 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
   const toggle = () => {
     const video = videoRef.current
     if (!video) return
-    video.paused ? void video.play() : video.pause()
+    if (video.paused) void video.play()
+    else video.pause()
   }
   const showEvidence = (target: SegmentationFrame) => {
     videoRef.current?.pause()
@@ -550,7 +655,8 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     const centerX = Math.round(point[0] * (annotationWidth - 1))
     const centerY = Math.round(point[1] * (annotationHeight - 1))
     setAnnotationValues(current => {
-      const next = current.length === annotationWidth * annotationHeight ? [...current] : new Array(annotationWidth * annotationHeight).fill(0)
+      const next =
+        current.length === annotationWidth * annotationHeight ? [...current] : new Array(annotationWidth * annotationHeight).fill(0)
       for (let y = Math.max(0, centerY - brushSize); y <= Math.min(annotationHeight - 1, centerY + brushSize); y++) {
         for (let x = Math.max(0, centerX - brushSize); x <= Math.min(annotationWidth - 1, centerX + brushSize); x++) {
           if ((x - centerX) ** 2 + (y - centerY) ** 2 <= brushSize ** 2) next[y * annotationWidth + x] = annotationValue
@@ -559,7 +665,7 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       return next
     })
     setAnnotationDirty(true)
-    setAnnotationStatus(old => old === 'confirmed' ? 'draft' : old)
+    setAnnotationStatus(old => (old === 'confirmed' ? 'draft' : old))
   }
   const handleAnnotationPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (mode !== 'annotation' || !terrain || annotationLoading) return
@@ -594,19 +700,21 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     if (!context) return
     context.beginPath()
     context.moveTo(annotationPolygon[0][0] * annotationWidth, annotationPolygon[0][1] * annotationHeight)
-    for (let index = 1; index < annotationPolygon.length; index++) context.lineTo(annotationPolygon[index][0] * annotationWidth, annotationPolygon[index][1] * annotationHeight)
+    for (let index = 1; index < annotationPolygon.length; index++)
+      context.lineTo(annotationPolygon[index][0] * annotationWidth, annotationPolygon[index][1] * annotationHeight)
     context.closePath()
     context.fillStyle = '#ffffff'
     context.fill()
     const pixels = context.getImageData(0, 0, annotationWidth, annotationHeight).data
     setAnnotationValues(current => {
-      const next = current.length === annotationWidth * annotationHeight ? [...current] : new Array(annotationWidth * annotationHeight).fill(0)
+      const next =
+        current.length === annotationWidth * annotationHeight ? [...current] : new Array(annotationWidth * annotationHeight).fill(0)
       for (let index = 0; index < next.length; index++) if (pixels[index * 4 + 3] > 0) next[index] = annotationValue
       return next
     })
     setAnnotationPolygon([])
     setAnnotationDirty(true)
-    setAnnotationStatus(old => old === 'confirmed' ? 'draft' : old)
+    setAnnotationStatus(old => (old === 'confirmed' ? 'draft' : old))
     setAnnotationMessage('Polygon übernommen.')
   }
   const undoAnnotation = () => {
@@ -622,7 +730,7 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
     if (!terrain) return
     rememberAnnotation()
     const machine = decodeRleValues(terrain.traversability.mask)
-    setAnnotationValues(machine.map(value => value === 1 ? 1 : value === 3 ? 2 : value === 0 ? 3 : 0))
+    setAnnotationValues(machine.map(value => (value === 1 ? 1 : value === 3 ? 2 : value === 0 ? 3 : 0)))
     setAnnotationDirty(true)
     setAnnotationStatus('draft')
     setAnnotationPolygon([])
@@ -652,7 +760,11 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       setAnnotationStatus(saved.status)
       setAnnotationRevision(saved.revision)
       setAnnotationDirty(false)
-      setAnnotationMessage(status === 'confirmed' ? `Frame ${frame.frame_index} als Ground Truth bestätigt.` : `Entwurf für Frame ${frame.frame_index} gespeichert.`)
+      setAnnotationMessage(
+        status === 'confirmed'
+          ? `Frame ${frame.frame_index} als Ground Truth bestätigt.`
+          : `Entwurf für Frame ${frame.frame_index} gespeichert.`,
+      )
       const summary = await listGroundTruth(mission.id, active)
       setAnnotationSummary(summary)
       if (advance) stepAnalysisFrame(1, true)
@@ -686,152 +798,642 @@ export default function AnalysisView({mission, data, reconstruction, segmentatio
       else if (event.key === '0' || event.key.toLowerCase() === 'e') setAnnotationValue(0)
       else if (event.key.toLowerCase() === 'b') setAnnotationTool('brush')
       else if (event.key.toLowerCase() === 'p') setAnnotationTool('polygon')
-      else if (event.key === 'ArrowLeft') {event.preventDefault(); stepAnalysisFrame(-1)}
-      else if (event.key === 'ArrowRight') {event.preventDefault(); stepAnalysisFrame(1)}
+      else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        stepAnalysisFrame(-1)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        stepAnalysisFrame(1)
+      }
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
   })
 
   if (!traversal || !result || !coords.length || !playPoint) {
-    return <div className="analysis-page"><div className="alert error">Für diese Mission fehlen Video-, Routen- oder Goal-4-Daten.</div><button onClick={onClose}>← Zurück</button></div>
+    return (
+      <div className="analysis-page">
+        <div className="alert error">Für diese Mission fehlen Video-, Routen- oder Goal-4-Daten.</div>
+        <button onClick={onClose}>← Zurück</button>
+      </div>
+    )
   }
 
-  return <div className="analysis-page">
-    <div className="analysis-top">
-      <button onClick={onClose}>← Zurück zum Upload</button>
-      <div><span className="eyebrow">GOAL 4 · AUTOMATISCHE AUSWERTUNG</span><h1>{mission.name}</h1></div>
-      <a href={`/api/v1/missions/${mission.id}/segmentation/report`} target="_blank" rel="noreferrer">Analysebericht ↗</a>
-    </div>
-    <div className="metric-grid">
-      <Metric label="Bestätigte Ground Truths" value={String(annotationSummary?.counts.confirmed ?? 0)}/>
-      <Metric label="Gespeicherte Entwürfe" value={String(annotationSummary?.counts.draft ?? 0)}/>
-      <Metric label="Terrainframes im Video" value={String(terrainFrames.length)}/>
-      <Metric label="Aktuell markiert" value={percent(annotationLabelledFraction)}/>
-      <Metric label="Evidenzframes" value={String(evidenceFrames.length)}/>
-      <Metric label="Benötigte ARGUS-Breite" value={vehicle ? `${n(vehicle.required_width_m, 2)} m` : 'nicht konfiguriert'}/>
-    </div>
-    <div className="player-tabs">{reconstruction.traversals.map((item, index) => <button key={item.video_id} className={item.video_id === traversal.video_id ? 'active' : ''} onClick={() => choose(item.video_id)}>VIDEO {index + 1}<small>{item.direction === 'A_TO_B' ? 'A → B' : 'B → A'}</small></button>)}</div>
-    <section className="goal4-player">
-      <div className="player-main">
-        <div className="video-stage" style={{aspectRatio: String(aspect), width: `min(100%, ${Math.max(0.1, aspect) * 72}vh)`}}>
-          <video
-            ref={videoRef}
-            src={`/api/v1/missions/${mission.id}/videos/${traversal.video_id}/content`}
-            preload="metadata"
-            playsInline
-            onLoadedMetadata={event => {
-              setDuration(event.currentTarget.duration)
-              setAspect(event.currentTarget.videoWidth / Math.max(1, event.currentTarget.videoHeight))
-              event.currentTarget.playbackRate = speed
-            }}
-            onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
-            onSeeked={event => setTime(event.currentTarget.currentTime)}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
-          />
-          <canvas ref={canvasRef} className={`detection-layer ${mode === 'original' ? 'original' : ''} ${mode === 'annotation' ? 'annotation-active' : ''}`} onClick={handleOverlayClick} onPointerDown={handleAnnotationPointerDown} onPointerMove={handleAnnotationPointerMove} onPointerUp={handleAnnotationPointerUp} onPointerCancel={handleAnnotationPointerUp} onDoubleClick={() => mode === 'annotation' && annotationTool === 'polygon' && closeAnnotationPolygon()} role="img" aria-label="Synchrones Analyse- und Ground-Truth-Overlay"/>
-          {(mode === 'ground' || mode === 'traversability' || mode === 'annotation') && !terrain && <div className="unassessable-overlay"><b>Nicht bewertbar</b><span>Kein zeitnah aus diesem Videoframe berechnetes Terrain-Ergebnis.</span></div>}
-          <div className="video-badge">
-            <i className={playing ? 'live' : ''}/>{playing ? 'PLAYBACK' : 'PAUSIERT'} ·{' '}
-            {mode === 'original' && 'ORIGINALVIDEO · KEIN OVERLAY'}
-            {mode === 'ground' && (terrain ? `BODEN ${percent(terrain.ground.visible_ratio)} · KI-EVIDENZ ${percent(terrain.ground.confidence)}` : 'BODEN NICHT BEWERTBAR')}
-            {mode === 'traversability' && (terrain ? `${overallStyle.label.toUpperCase()} · KI-EVIDENZ ${percent(terrain.traversability.overall_confidence)}` : 'NICHT BEWERTBAR')}
-            {mode === 'ai_grade' && (gradePrediction?.grade_mask ? `KI-ABSTUFUNG · ${percent(gradePrediction.path_fraction)} WEG · KEINE FAHRFREIGABE` : gradeLoading ? 'KI-ABSTUFUNG WIRD BERECHNET …' : 'KI-ABSTUFUNG NICHT VERFÜGBAR')}
-            {mode === 'labels' && (nearestManualLabel ? `EIGENES LABEL · FRAME ${nearestManualLabel.frame_index + 1} · ${nearestManualLabel.status.toUpperCase()}` : 'KEIN EIGENES LABEL AN DIESEM FRAME')}
-            {mode === 'annotation' && `${annotationStatus === 'confirmed' ? 'GROUND TRUTH BESTÄTIGT' : annotationDirty ? 'UNGESPEICHERTE ÄNDERUNG' : annotationStatus === 'draft' ? 'ENTWURF' : 'NEUER FRAME'} · ${percent(annotationLabelledFraction)} MARKIERT`}
-            {frame && ` · FRAME ${frame.frame_index} · Δ ${Math.max(0, Math.round(time * 1000 - frame.timestamp_ms))} ms`}
+  return (
+    <div className="analysis-page">
+      <div className="analysis-top">
+        <button onClick={onClose}>← Zurück zum Upload</button>
+        <div>
+          <span className="eyebrow">GOAL 4 · AUTOMATISCHE AUSWERTUNG</span>
+          <h1>{mission.name}</h1>
+        </div>
+        <a href={`/api/v1/missions/${mission.id}/segmentation/report`} target="_blank" rel="noreferrer">
+          Analysebericht ↗
+        </a>
+      </div>
+      <div className="metric-grid">
+        <Metric label="Bestätigte Ground Truths" value={String(annotationSummary?.counts.confirmed ?? 0)} />
+        <Metric label="Gespeicherte Entwürfe" value={String(annotationSummary?.counts.draft ?? 0)} />
+        <Metric label="Terrainframes im Video" value={String(terrainFrames.length)} />
+        <Metric label="Aktuell markiert" value={percent(annotationLabelledFraction)} />
+        <Metric label="Evidenzframes" value={String(evidenceFrames.length)} />
+        <Metric label="Benötigte ARGUS-Breite" value={vehicle ? `${n(vehicle.required_width_m, 2)} m` : 'nicht konfiguriert'} />
+      </div>
+      <div className="player-tabs">
+        {reconstruction.traversals.map((item, index) => (
+          <button
+            key={item.video_id}
+            className={item.video_id === traversal.video_id ? 'active' : ''}
+            onClick={() => choose(item.video_id)}
+          >
+            VIDEO {index + 1}
+            <small>{item.direction === 'A_TO_B' ? 'A → B' : 'B → A'}</small>
+          </button>
+        ))}
+      </div>
+      <section className="goal4-player">
+        <div className="player-main">
+          <div className="video-stage" style={{aspectRatio: String(aspect), width: `min(100%, ${Math.max(0.1, aspect) * 72}vh)`}}>
+            <video
+              ref={videoRef}
+              src={`/api/v1/missions/${mission.id}/videos/${traversal.video_id}/content`}
+              preload="metadata"
+              playsInline
+              onLoadedMetadata={event => {
+                setDuration(event.currentTarget.duration)
+                setAspect(event.currentTarget.videoWidth / Math.max(1, event.currentTarget.videoHeight))
+                event.currentTarget.playbackRate = speed
+              }}
+              onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
+              onSeeked={event => setTime(event.currentTarget.currentTime)}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+            />
+            <canvas
+              ref={canvasRef}
+              className={`detection-layer ${mode === 'original' ? 'original' : ''} ${mode === 'annotation' ? 'annotation-active' : ''}`}
+              onClick={handleOverlayClick}
+              onPointerDown={handleAnnotationPointerDown}
+              onPointerMove={handleAnnotationPointerMove}
+              onPointerUp={handleAnnotationPointerUp}
+              onPointerCancel={handleAnnotationPointerUp}
+              onDoubleClick={() => mode === 'annotation' && annotationTool === 'polygon' && closeAnnotationPolygon()}
+              role="img"
+              aria-label="Synchrones Analyse- und Ground-Truth-Overlay"
+            />
+            {(mode === 'ground' || mode === 'traversability' || mode === 'annotation') && !terrain && (
+              <div className="unassessable-overlay">
+                <b>Nicht bewertbar</b>
+                <span>Kein zeitnah aus diesem Videoframe berechnetes Terrain-Ergebnis.</span>
+              </div>
+            )}
+            <div className="video-badge">
+              <i className={playing ? 'live' : ''} />
+              {playing ? 'PLAYBACK' : 'PAUSIERT'} · {mode === 'original' && 'ORIGINALVIDEO · KEIN OVERLAY'}
+              {mode === 'ground' &&
+                (terrain
+                  ? `BODEN ${percent(terrain.ground.visible_ratio)} · KI-EVIDENZ ${percent(terrain.ground.confidence)}`
+                  : 'BODEN NICHT BEWERTBAR')}
+              {mode === 'traversability' &&
+                (terrain
+                  ? `${overallStyle.label.toUpperCase()} · KI-EVIDENZ ${percent(terrain.traversability.overall_confidence)}`
+                  : 'NICHT BEWERTBAR')}
+              {mode === 'ai_grade' &&
+                (gradePrediction?.grade_mask
+                  ? `KI-ABSTUFUNG · ${percent(gradePrediction.path_fraction)} WEG · KEINE FAHRFREIGABE`
+                  : gradeLoading
+                    ? 'KI-ABSTUFUNG WIRD BERECHNET …'
+                    : 'KI-ABSTUFUNG NICHT VERFÜGBAR')}
+              {mode === 'labels' &&
+                (nearestManualLabel
+                  ? `EIGENES LABEL · FRAME ${nearestManualLabel.frame_index + 1} · ${nearestManualLabel.status.toUpperCase()}`
+                  : 'KEIN EIGENES LABEL AN DIESEM FRAME')}
+              {mode === 'annotation' &&
+                `${annotationStatus === 'confirmed' ? 'GROUND TRUTH BESTÄTIGT' : annotationDirty ? 'UNGESPEICHERTE ÄNDERUNG' : annotationStatus === 'draft' ? 'ENTWURF' : 'NEUER FRAME'} · ${percent(annotationLabelledFraction)} MARKIERT`}
+              {frame && ` · FRAME ${frame.frame_index} · Δ ${Math.max(0, Math.round(time * 1000 - frame.timestamp_ms))} ms`}
+            </div>
+          </div>
+          <div className="transport">
+            <button onClick={toggle} aria-label={playing ? 'Video pausieren' : 'Video abspielen'}>
+              {playing ? 'Ⅱ' : '▶'}
+            </button>
+            <span>{clock(time)}</span>
+            <input
+              aria-label="Videoposition"
+              type="range"
+              min="0"
+              max={duration || 1}
+              step="0.01"
+              value={time}
+              onChange={event => seek(+event.target.value)}
+            />
+            <span>{clock(duration)}</span>
+            <select
+              aria-label="Geschwindigkeit"
+              value={speed}
+              onChange={event => {
+                const value = +event.target.value
+                setSpeed(value)
+                if (videoRef.current) videoRef.current.playbackRate = value
+              }}
+            >
+              {[0.5, 1, 1.5, 2].map(value => (
+                <option key={value} value={value}>
+                  {value}×
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <div className="transport">
-          <button onClick={toggle} aria-label={playing ? 'Video pausieren' : 'Video abspielen'}>{playing ? 'Ⅱ' : '▶'}</button>
-          <span>{clock(time)}</span>
-          <input aria-label="Videoposition" type="range" min="0" max={duration || 1} step="0.01" value={time} onChange={event => seek(+event.target.value)}/>
-          <span>{clock(duration)}</span>
-          <select aria-label="Geschwindigkeit" value={speed} onChange={event => {const value = +event.target.value; setSpeed(value); if (videoRef.current) videoRef.current.playbackRate = value}}>{[0.5, 1, 1.5, 2].map(value => <option key={value} value={value}>{value}×</option>)}</select>
-        </div>
+        <aside className="player-controls">
+          <h2>Darstellung</h2>
+          <div className="mode-switch">
+            {modes.map(item => (
+              <button
+                key={item.id}
+                className={mode === item.id ? 'active' : ''}
+                aria-pressed={mode === item.id}
+                onClick={() => {
+                  setMode(item.id)
+                  setSelectedRegionId(null)
+                  if (item.id === 'annotation') videoRef.current?.pause()
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && (
+            <label>
+              KI-Overlay-Deckkraft · {Math.round(opacity * 100)} %
+              <input type="range" min="0.1" max="0.9" step="0.05" value={opacity} onChange={event => setOpacity(+event.target.value)} />
+            </label>
+          )}
+
+          {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && (
+            <label className="corridor-toggle">
+              <input type="checkbox" checked={showManualLabels} onChange={event => setShowManualLabels(event.target.checked)} />
+              Eigene Labels zusätzlich überlagern
+            </label>
+          )}
+          {(mode === 'labels' || showManualLabels) && (
+            <label>
+              Eigene-Label-Deckkraft · {Math.round(manualOpacity * 100)} %
+              <input
+                aria-label="Eigene-Label-Deckkraft"
+                type="range"
+                min="0.05"
+                max="0.9"
+                step="0.05"
+                value={manualOpacity}
+                onChange={event => setManualOpacity(+event.target.value)}
+              />
+            </label>
+          )}
+
+          {mode === 'original' && (
+            <div className="detection-detail">
+              <b>Unverändertes Originalvideo</b>
+              <span>Keine Analysemaske und keine Fahrbewertung eingeblendet.</span>
+            </div>
+          )}
+          {mode === 'ai_grade' && (
+            <div className="grade-panel">
+              {gradeMessage ? (
+                <div className="detection-detail">
+                  <b>KI-Abstufung nicht verfügbar</b>
+                  <span>{gradeMessage}</span>
+                </div>
+              ) : gradePrediction?.grade_mask ? (
+                <GradeLegend
+                  ontology={gradePrediction.grade_ontology}
+                  mask={gradePrediction.grade_mask}
+                  grading={gradePrediction.grading}
+                />
+              ) : (
+                <div className="detection-detail">
+                  <b>{gradeLoading ? 'Abstufung wird berechnet …' : 'Noch keine Abstufung'}</b>
+                  <span>Die Abstufung wird für den angehaltenen Frame aus dem Wegmodell dieser Mission berechnet.</span>
+                </div>
+              )}
+              {gradePrediction && (
+                <small>
+                  Frame {gradeFrameIndex + 1} · Modell {gradePrediction.model_run_id} · {percent(gradePrediction.path_fraction)} des Bildes
+                  als Weg erkannt
+                </small>
+              )}
+              {playing && (
+                <small className="grade-note">
+                  Während der Wiedergabe wird die Abstufung nicht nachgeladen. Pausiere für den aktuellen Frame.
+                </small>
+              )}
+            </div>
+          )}
+
+          {mode === 'labels' && (
+            <div className="manual-label-viewer">
+              <h2>Eigene Ground Truth</h2>
+              {manualLabels.length ? (
+                <>
+                  <label>
+                    Gespeichertes Label auswählen
+                    <select
+                      aria-label="Gespeichertes eigenes Label"
+                      value={nearestManualLabel?.frame_index ?? ''}
+                      onChange={event => seekManualLabel(+event.target.value)}
+                    >
+                      <option value="">Label auswählen …</option>
+                      {manualLabels.map(item => (
+                        <option key={item.frame_index} value={item.frame_index}>
+                          Frame {item.frame_index + 1} · {clock(item.timestamp_ms / 1000)} ·{' '}
+                          {item.status === 'confirmed' ? 'bestätigt' : 'Entwurf'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {nearestManualLabel ? (
+                    <div className="detection-detail">
+                      <b>Manuelle Polygonmaske</b>
+                      <span>
+                        Frame {nearestManualLabel.frame_index + 1} · {clock(nearestManualLabel.timestamp_ms / 1000)}
+                      </span>
+                      <span>
+                        {nearestManualLabel.statistics.polygon_count ?? nearestManualLabel.polygons?.length ?? 0} Polygon ·{' '}
+                        {nearestManualLabel.statistics.point_count ?? 0} Punkte
+                      </span>
+                      <small>Die weiße Kontur unterscheidet dein Label von der automatischen Maske.</small>
+                    </div>
+                  ) : (
+                    <div className="terrain-summary unknown">
+                      <b>Zwischen zwei Labels</b>
+                      <span>Wähle ein gespeichertes Label aus oder spiele bis zu einem gelabelten Frame.</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="terrain-summary unknown">
+                  <b>Noch keine eigenen Labels</b>
+                  <span>Erstelle zuerst Polygonmasken im manuellen Labeling-Modus.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === 'annotation' && (
+            <div className="ground-truth-editor">
+              <div className={`ground-truth-state ${annotationStatus} ${annotationDirty ? 'dirty' : ''}`}>
+                <b>
+                  {annotationLoading
+                    ? 'Maske wird geladen …'
+                    : annotationDirty
+                      ? 'Ungespeicherte Änderung'
+                      : annotationStatus === 'confirmed'
+                        ? `Bestätigte Ground Truth · Revision ${annotationRevision}`
+                        : annotationStatus === 'draft'
+                          ? `Gespeicherter Entwurf · Revision ${annotationRevision}`
+                          : 'Noch nicht markiert'}
+                </b>
+                <span>{frame ? `Frame ${frame.frame_index} · ${clock(frame.timestamp_ms / 1000)}` : 'Kein Analyseframe'}</span>
+              </div>
+              <h2>1 · Klasse wählen</h2>
+              <div className="ground-truth-labels">
+                {([1, 2, 3, 0] as GroundTruthValue[]).map(value => (
+                  <button
+                    key={value}
+                    className={annotationValue === value ? 'active' : ''}
+                    style={{'--label-color': groundTruthStyles[value].color} as CSSProperties}
+                    onClick={() => setAnnotationValue(value)}
+                  >
+                    <i />
+                    {groundTruthStyles[value].label}
+                    <small>{value === 1 ? 'Taste 1' : value === 2 ? 'Taste 2' : value === 3 ? 'Taste 3' : 'Taste 0/E'}</small>
+                  </button>
+                ))}
+              </div>
+              <h2>2 · Werkzeug</h2>
+              <div className="annotation-tool-switch">
+                <button className={annotationTool === 'polygon' ? 'active' : ''} onClick={() => setAnnotationTool('polygon')}>
+                  Polygon · P
+                </button>
+                <button className={annotationTool === 'brush' ? 'active' : ''} onClick={() => setAnnotationTool('brush')}>
+                  Pinsel · B
+                </button>
+              </div>
+              {annotationTool === 'polygon' ? (
+                <div className="polygon-controls">
+                  <span>{annotationPolygon.length} Punkte · in das Video klicken</span>
+                  <button disabled={annotationPolygon.length < 3} onClick={closeAnnotationPolygon}>
+                    Polygon schließen
+                  </button>
+                  <button disabled={!annotationPolygon.length} onClick={() => setAnnotationPolygon([])}>
+                    Punkte abbrechen
+                  </button>
+                </div>
+              ) : (
+                <label>
+                  Pinselgröße · {brushSize} Rasterpixel
+                  <input type="range" min="1" max="14" step="1" value={brushSize} onChange={event => setBrushSize(+event.target.value)} />
+                </label>
+              )}
+              <div className="annotation-actions">
+                <button disabled={!undoStackRef.current.length} onClick={undoAnnotation}>
+                  ↶ Rückgängig
+                </button>
+                <button disabled={!terrain} onClick={useAiSuggestion}>
+                  KI-Vorschlag übernehmen
+                </button>
+                <button onClick={clearAnnotation}>Alles leeren</button>
+              </div>
+              <label className="corridor-toggle">
+                <input type="checkbox" checked={showAiSuggestion} onChange={event => setShowAiSuggestion(event.target.checked)} />
+                KI-Maske schwach im Hintergrund zeigen
+              </label>
+              <div className="annotation-counts">
+                <span style={{borderColor: groundTruthStyles[1].color}}>
+                  Grün <b>{percent(annotationCounts[1] / Math.max(1, annotationValues.length))}</b>
+                </span>
+                <span style={{borderColor: groundTruthStyles[2].color}}>
+                  Rot <b>{percent(annotationCounts[2] / Math.max(1, annotationValues.length))}</b>
+                </span>
+                <span style={{borderColor: groundTruthStyles[3].color}}>
+                  Grau <b>{percent(annotationCounts[3] / Math.max(1, annotationValues.length))}</b>
+                </span>
+                <span>
+                  Unmarkiert <b>{percent(annotationCounts[0] / Math.max(1, annotationValues.length))}</b>
+                </span>
+              </div>
+              <label>
+                Annotator
+                <input value={annotator} maxLength={80} onChange={event => setAnnotator(event.target.value)} />
+              </label>
+              <label>
+                Notiz zum Frame
+                <textarea
+                  value={annotationNotes}
+                  maxLength={1000}
+                  placeholder="Optional: warum ist der Bereich befahrbar oder unsicher?"
+                  onChange={event => setAnnotationNotes(event.target.value)}
+                />
+              </label>
+              {annotationMessage && (
+                <div className="annotation-message" role="status">
+                  {annotationMessage}
+                </div>
+              )}
+              <div className="annotation-save">
+                <button disabled={annotationSaving || !terrain} onClick={() => void persistAnnotation('draft', false)}>
+                  Entwurf speichern
+                </button>
+                <button
+                  disabled={annotationSaving || !terrain || annotationCounts[1] + annotationCounts[2] + annotationCounts[3] === 0}
+                  onClick={() => void persistAnnotation('confirmed', false)}
+                >
+                  Bestätigen
+                </button>
+                <button
+                  className="primary"
+                  disabled={annotationSaving || !terrain || annotationCounts[1] + annotationCounts[2] + annotationCounts[3] === 0}
+                  onClick={() => void persistAnnotation('confirmed', true)}
+                >
+                  Bestätigen &amp; nächster Frame →
+                </button>
+              </div>
+              <small className="annotation-shortcuts">
+                Schnell: 1 Grün · 2 Rot · 3 Grau · 0 Radierer · P Polygon · B Pinsel · Strg+Z · ←/→ Frame
+              </small>
+            </div>
+          )}
+
+          {mode === 'ground' && (
+            <>
+              <h2>Bodenmaske</h2>
+              {terrain ? (
+                <div className="terrain-summary ground">
+                  <b>Aus aktuellem Videoframe berechnet</b>
+                  <span>Sichtbare Bodenfläche {percent(terrain.ground.visible_ratio)}</span>
+                  <span>
+                    KI-Evidenz {percent(terrain.ground.confidence)} · {confidenceWord(terrain.ground.confidence)}
+                  </span>
+                  <span>
+                    Quelle: {terrain.ground.source === 'current_video_frame_inference' ? 'aktuelles Videobild' : terrain.ground.source}
+                  </span>
+                  <small>Frame-Hash {terrain.source_frame_hash}</small>
+                </div>
+              ) : (
+                <div className="terrain-summary unknown">
+                  <b>Nicht bewertbar</b>
+                  <span>Für den aktuellen Zeitpunkt liegt keine Bodenmaske vor.</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {mode === 'traversability' && (
+            <>
+              <h2>Befahrbarkeitsklassen</h2>
+              <div className="terrain-legend">
+                {terrainOrder.map(classId => {
+                  const item = segmentation.terrain_ontology?.[classId] ?? terrainFallback[classId]
+                  return (
+                    <div key={classId}>
+                      <i style={{background: item.color}} />
+                      <span>{item.label}</span>
+                      <b>{terrain ? percent(terrain.traversability.class_coverage[classId] ?? 0) : '–'}</b>
+                    </div>
+                  )
+                })}
+              </div>
+              <label className="corridor-toggle">
+                <input type="checkbox" checked={showCorridor} onChange={event => setShowCorridor(event.target.checked)} />
+                Fahrkorridor und Mittellinie anzeigen
+              </label>
+              {terrain ? (
+                <>
+                  <div className={`terrain-summary ${overallClass}`}>
+                    <b>{overallStyle.label}</b>
+                    <span>
+                      KI-Evidenz {percent(terrain.traversability.overall_confidence)} ·{' '}
+                      {confidenceWord(terrain.traversability.overall_confidence)}
+                    </span>
+                    <span>Grauanteil {percent(terrain.quality.unknown_ratio)}</span>
+                  </div>
+                  <div className={`corridor-status ${terrain.corridor.status}`}>
+                    <b>
+                      {terrain.corridor.status === 'available'
+                        ? 'Korridorvorschlag verfügbar'
+                        : terrain.corridor.status === 'uncertain'
+                          ? 'Korridorvorschlag unsicher'
+                          : 'Kein belastbarer Korridor'}
+                    </b>
+                    <span>Konfidenz {percent(terrain.corridor.confidence)}</span>
+                    <span>
+                      {terrain.corridor.minimum_width_m == null
+                        ? `Mindestbreite nur relativ: ${n(terrain.corridor.minimum_width_ratio, 2)}×`
+                        : `Geschätzte Mindestbreite ${n(terrain.corridor.minimum_width_m, 2)} m`}
+                    </span>
+                    <span>Grüne Bildstützung {percent(terrain.corridor.green_support_fraction ?? 0)}</span>
+                    <span>
+                      {terrain.corridor.stable_frames} stabile Frames · Sprung {n(terrain.corridor.stability_px, 1)} px
+                    </span>
+                    {terrain.corridor.reasons.map(item => (
+                      <small key={item}>{reasonText(item)}</small>
+                    ))}
+                  </div>
+                  {vehicle && (
+                    <div className="vehicle-readout">
+                      <b>ARGUS-Konfiguration</b>
+                      <span>
+                        Fahrzeug {n(vehicle.width_m, 2)} m + je {n(vehicle.safety_margin_per_side_m, 2)} m Rand
+                      </span>
+                      <span>Erforderlich {n(vehicle.required_width_m, 2)} m</span>
+                      {vehicle.source !== 'environment' && vehicle.source !== 'configured' && (
+                        <small>Dokumentierte Arbeitsannahme – Breite und Kameraskala vor Einsatz am realen Fahrzeug bestätigen.</small>
+                      )}
+                    </div>
+                  )}
+                  {selectedRegion && (
+                    <div className="detection-detail">
+                      <b>{(segmentation.terrain_ontology?.[selectedRegion.class_id] ?? terrainFallback[selectedRegion.class_id]).label}</b>
+                      <span>Region {selectedRegion.region_id}</span>
+                      <span>KI-Evidenz {percent(selectedRegion.confidence)}</span>
+                      {selectedRegion.reasons.map(item => (
+                        <small key={item}>{reasonText(item)}</small>
+                      ))}
+                    </div>
+                  )}
+                  <h2 className="factor-heading">Bewertungsfaktoren</h2>
+                  <div className="factor-bars">
+                    {factorLabels.map(([key, label]) => (
+                      <Factor key={key} label={label} value={terrain.factors[key]} />
+                    ))}
+                  </div>
+                  <div className="quality-readout">
+                    <span>
+                      Unschärferisiko <b>{percent(terrain.quality.blur_score)}</b>
+                    </span>
+                    <span>
+                      Belichtung nutzbar <b>{percent(terrain.quality.exposure_score)}</b>
+                    </span>
+                    <span>
+                      Motion-Inlier <b>{terrain.quality.motion_inliers}</b>
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="terrain-summary unknown">
+                  <b>Nicht bewertbar</b>
+                  <span>Unsichere oder fehlende Daten werden niemals automatisch grün markiert.</span>
+                </div>
+              )}
+            </>
+          )}
+        </aside>
+      </section>
+
+      <div className="safety-boundary" role="note">
+        <b>Keine Fahrfreigabe</b>
+        <span>
+          Diese Darstellung ist ausschließlich eine KI-gestützte Geländeeinschätzung. Verdeckte oder unsichere Bereiche gelten nicht
+          automatisch als befahrbar. Einsatzentscheidung und Vor-Ort-Prüfung bleiben erforderlich.
+        </span>
       </div>
-      <aside className="player-controls">
-        <h2>Darstellung</h2>
-        <div className="mode-switch">{modes.map(item => <button key={item.id} className={mode === item.id ? 'active' : ''} aria-pressed={mode === item.id} onClick={() => {setMode(item.id); setSelectedRegionId(null); if (item.id === 'annotation') videoRef.current?.pause()}}>{item.label}</button>)}</div>
-        {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && <label>KI-Overlay-Deckkraft · {Math.round(opacity * 100)} %<input type="range" min="0.1" max="0.9" step="0.05" value={opacity} onChange={event => setOpacity(+event.target.value)}/></label>}
 
-        {(mode === 'ground' || mode === 'traversability' || mode === 'ai_grade') && <label className="corridor-toggle"><input type="checkbox" checked={showManualLabels} onChange={event => setShowManualLabels(event.target.checked)}/>Eigene Labels zusätzlich überlagern</label>}
-        {(mode === 'labels' || showManualLabels) && <label>Eigene-Label-Deckkraft · {Math.round(manualOpacity * 100)} %<input aria-label="Eigene-Label-Deckkraft" type="range" min="0.05" max="0.9" step="0.05" value={manualOpacity} onChange={event => setManualOpacity(+event.target.value)}/></label>}
+      <section className="terrain-evidence">
+        <div className="section-head">
+          <h2>Repräsentative Evidenzframes</h2>
+          <p>Jede Karte stammt aus einem berechneten Videoframe. Anklicken pausiert das Video und springt exakt zur zugehörigen Maske.</p>
+        </div>
+        <div className="evidence-frame-nav">
+          <button onClick={() => stepAnalysisFrame(-1)}>← Vorheriger Analyseframe</button>
+          <span>{frame ? `Frame ${frame.frame_index} · ${clock(frame.timestamp_ms / 1000)}` : 'Kein Analyseframe gewählt'}</span>
+          <button onClick={() => stepAnalysisFrame(1)}>Nächster Analyseframe →</button>
+        </div>
+        {evidenceFrames.length ? (
+          <div className="terrain-evidence-grid">
+            {evidenceFrames.map(item => {
+              const evaluation = item.terrain!
+              const classId = evaluation.traversability.overall_class
+              const style = segmentation.terrain_ontology?.[classId] ?? terrainFallback[classId]
+              const imageUrl = evaluation.evidence.overlay_url ?? evaluation.evidence.image_url
+              return (
+                <button
+                  key={`${item.video_id}-${item.frame_index}`}
+                  className={frame?.frame_index === item.frame_index ? 'active' : ''}
+                  onClick={() => showEvidence(item)}
+                >
+                  {imageUrl ? (
+                    <img src={imageUrl} alt={`Evidenzframe ${item.frame_index}`} />
+                  ) : (
+                    <div className="evidence-placeholder" style={{borderColor: style.color}}>
+                      Kein Vorschaubild
+                    </div>
+                  )}
+                  <span>
+                    <i style={{background: style.color}} />
+                    {style.label}
+                  </span>
+                  <b>
+                    Frame {item.frame_index} · {clock(item.timestamp_ms / 1000)}
+                  </b>
+                  <small>KI-Evidenz {percent(evaluation.traversability.overall_confidence)}</small>
+                  {evaluation.evidence.reasons.slice(0, 2).map(reason => (
+                    <small key={reason}>{reasonText(reason)}</small>
+                  ))}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="empty terrain-empty">
+            Für dieses Video sind noch keine repräsentativen Terrain-Evidenzframes hinterlegt. Ältere Analyseläufe bleiben abspielbar,
+            müssen für die neue Bodenanalyse aber erneut verarbeitet werden.
+          </div>
+        )}
+      </section>
 
-        {mode === 'original' && <div className="detection-detail"><b>Unverändertes Originalvideo</b><span>Keine Analysemaske und keine Fahrbewertung eingeblendet.</span></div>}
-        {mode === 'ai_grade' && <div className="grade-panel">
-          {gradeMessage
-            ? <div className="detection-detail"><b>KI-Abstufung nicht verfügbar</b><span>{gradeMessage}</span></div>
-            : gradePrediction?.grade_mask
-              ? <GradeLegend ontology={gradePrediction.grade_ontology} mask={gradePrediction.grade_mask} grading={gradePrediction.grading}/>
-              : <div className="detection-detail"><b>{gradeLoading ? 'Abstufung wird berechnet …' : 'Noch keine Abstufung'}</b><span>Die Abstufung wird für den angehaltenen Frame aus dem Wegmodell dieser Mission berechnet.</span></div>}
-          {gradePrediction && <small>Frame {gradeFrameIndex + 1} · Modell {gradePrediction.model_run_id} · {percent(gradePrediction.path_fraction)} des Bildes als Weg erkannt</small>}
-          {playing && <small className="grade-note">Während der Wiedergabe wird die Abstufung nicht nachgeladen. Pausiere für den aktuellen Frame.</small>}
-        </div>}
-
-        {mode === 'labels' && <div className="manual-label-viewer">
-          <h2>Eigene Ground Truth</h2>
-          {manualLabels.length ? <><label>Gespeichertes Label auswählen<select aria-label="Gespeichertes eigenes Label" value={nearestManualLabel?.frame_index ?? ''} onChange={event => seekManualLabel(+event.target.value)}><option value="">Label auswählen …</option>{manualLabels.map(item => <option key={item.frame_index} value={item.frame_index}>Frame {item.frame_index + 1} · {clock(item.timestamp_ms / 1000)} · {item.status === 'confirmed' ? 'bestätigt' : 'Entwurf'}</option>)}</select></label>{nearestManualLabel ? <div className="detection-detail"><b>Manuelle Polygonmaske</b><span>Frame {nearestManualLabel.frame_index + 1} · {clock(nearestManualLabel.timestamp_ms / 1000)}</span><span>{nearestManualLabel.statistics.polygon_count ?? nearestManualLabel.polygons?.length ?? 0} Polygon · {nearestManualLabel.statistics.point_count ?? 0} Punkte</span><small>Die weiße Kontur unterscheidet dein Label von der automatischen Maske.</small></div> : <div className="terrain-summary unknown"><b>Zwischen zwei Labels</b><span>Wähle ein gespeichertes Label aus oder spiele bis zu einem gelabelten Frame.</span></div>}</> : <div className="terrain-summary unknown"><b>Noch keine eigenen Labels</b><span>Erstelle zuerst Polygonmasken im manuellen Labeling-Modus.</span></div>}
-        </div>}
-
-        {mode === 'annotation' && <div className="ground-truth-editor">
-          <div className={`ground-truth-state ${annotationStatus} ${annotationDirty ? 'dirty' : ''}`}><b>{annotationLoading ? 'Maske wird geladen …' : annotationDirty ? 'Ungespeicherte Änderung' : annotationStatus === 'confirmed' ? `Bestätigte Ground Truth · Revision ${annotationRevision}` : annotationStatus === 'draft' ? `Gespeicherter Entwurf · Revision ${annotationRevision}` : 'Noch nicht markiert'}</b><span>{frame ? `Frame ${frame.frame_index} · ${clock(frame.timestamp_ms / 1000)}` : 'Kein Analyseframe'}</span></div>
-          <h2>1 · Klasse wählen</h2>
-          <div className="ground-truth-labels">{([1, 2, 3, 0] as GroundTruthValue[]).map(value => <button key={value} className={annotationValue === value ? 'active' : ''} style={{'--label-color': groundTruthStyles[value].color} as CSSProperties} onClick={() => setAnnotationValue(value)}><i/>{groundTruthStyles[value].label}<small>{value === 1 ? 'Taste 1' : value === 2 ? 'Taste 2' : value === 3 ? 'Taste 3' : 'Taste 0/E'}</small></button>)}</div>
-          <h2>2 · Werkzeug</h2>
-          <div className="annotation-tool-switch"><button className={annotationTool === 'polygon' ? 'active' : ''} onClick={() => setAnnotationTool('polygon')}>Polygon · P</button><button className={annotationTool === 'brush' ? 'active' : ''} onClick={() => setAnnotationTool('brush')}>Pinsel · B</button></div>
-          {annotationTool === 'polygon' ? <div className="polygon-controls"><span>{annotationPolygon.length} Punkte · in das Video klicken</span><button disabled={annotationPolygon.length < 3} onClick={closeAnnotationPolygon}>Polygon schließen</button><button disabled={!annotationPolygon.length} onClick={() => setAnnotationPolygon([])}>Punkte abbrechen</button></div> : <label>Pinselgröße · {brushSize} Rasterpixel<input type="range" min="1" max="14" step="1" value={brushSize} onChange={event => setBrushSize(+event.target.value)}/></label>}
-          <div className="annotation-actions"><button disabled={!undoStackRef.current.length} onClick={undoAnnotation}>↶ Rückgängig</button><button disabled={!terrain} onClick={useAiSuggestion}>KI-Vorschlag übernehmen</button><button onClick={clearAnnotation}>Alles leeren</button></div>
-          <label className="corridor-toggle"><input type="checkbox" checked={showAiSuggestion} onChange={event => setShowAiSuggestion(event.target.checked)}/>KI-Maske schwach im Hintergrund zeigen</label>
-          <div className="annotation-counts"><span style={{borderColor: groundTruthStyles[1].color}}>Grün <b>{percent(annotationCounts[1] / Math.max(1, annotationValues.length))}</b></span><span style={{borderColor: groundTruthStyles[2].color}}>Rot <b>{percent(annotationCounts[2] / Math.max(1, annotationValues.length))}</b></span><span style={{borderColor: groundTruthStyles[3].color}}>Grau <b>{percent(annotationCounts[3] / Math.max(1, annotationValues.length))}</b></span><span>Unmarkiert <b>{percent(annotationCounts[0] / Math.max(1, annotationValues.length))}</b></span></div>
-          <label>Annotator<input value={annotator} maxLength={80} onChange={event => setAnnotator(event.target.value)}/></label>
-          <label>Notiz zum Frame<textarea value={annotationNotes} maxLength={1000} placeholder="Optional: warum ist der Bereich befahrbar oder unsicher?" onChange={event => setAnnotationNotes(event.target.value)}/></label>
-          {annotationMessage && <div className="annotation-message" role="status">{annotationMessage}</div>}
-          <div className="annotation-save"><button disabled={annotationSaving || !terrain} onClick={() => void persistAnnotation('draft', false)}>Entwurf speichern</button><button disabled={annotationSaving || !terrain || annotationCounts[1] + annotationCounts[2] + annotationCounts[3] === 0} onClick={() => void persistAnnotation('confirmed', false)}>Bestätigen</button><button className="primary" disabled={annotationSaving || !terrain || annotationCounts[1] + annotationCounts[2] + annotationCounts[3] === 0} onClick={() => void persistAnnotation('confirmed', true)}>Bestätigen &amp; nächster Frame →</button></div>
-          <small className="annotation-shortcuts">Schnell: 1 Grün · 2 Rot · 3 Grau · 0 Radierer · P Polygon · B Pinsel · Strg+Z · ←/→ Frame</small>
-        </div>}
-
-        {mode === 'ground' && <>
-          <h2>Bodenmaske</h2>
-          {terrain ? <div className="terrain-summary ground"><b>Aus aktuellem Videoframe berechnet</b><span>Sichtbare Bodenfläche {percent(terrain.ground.visible_ratio)}</span><span>KI-Evidenz {percent(terrain.ground.confidence)} · {confidenceWord(terrain.ground.confidence)}</span><span>Quelle: {terrain.ground.source === 'current_video_frame_inference' ? 'aktuelles Videobild' : terrain.ground.source}</span><small>Frame-Hash {terrain.source_frame_hash}</small></div> : <div className="terrain-summary unknown"><b>Nicht bewertbar</b><span>Für den aktuellen Zeitpunkt liegt keine Bodenmaske vor.</span></div>}
-        </>}
-
-        {mode === 'traversability' && <>
-          <h2>Befahrbarkeitsklassen</h2>
-          <div className="terrain-legend">{terrainOrder.map(classId => {const item = segmentation.terrain_ontology?.[classId] ?? terrainFallback[classId]; return <div key={classId}><i style={{background: item.color}}/><span>{item.label}</span><b>{terrain ? percent(terrain.traversability.class_coverage[classId] ?? 0) : '–'}</b></div>})}</div>
-          <label className="corridor-toggle"><input type="checkbox" checked={showCorridor} onChange={event => setShowCorridor(event.target.checked)}/>Fahrkorridor und Mittellinie anzeigen</label>
-          {terrain ? <>
-            <div className={`terrain-summary ${overallClass}`}><b>{overallStyle.label}</b><span>KI-Evidenz {percent(terrain.traversability.overall_confidence)} · {confidenceWord(terrain.traversability.overall_confidence)}</span><span>Grauanteil {percent(terrain.quality.unknown_ratio)}</span></div>
-            <div className={`corridor-status ${terrain.corridor.status}`}><b>{terrain.corridor.status === 'available' ? 'Korridorvorschlag verfügbar' : terrain.corridor.status === 'uncertain' ? 'Korridorvorschlag unsicher' : 'Kein belastbarer Korridor'}</b><span>Konfidenz {percent(terrain.corridor.confidence)}</span><span>{terrain.corridor.minimum_width_m == null ? `Mindestbreite nur relativ: ${n(terrain.corridor.minimum_width_ratio, 2)}×` : `Geschätzte Mindestbreite ${n(terrain.corridor.minimum_width_m, 2)} m`}</span><span>Grüne Bildstützung {percent(terrain.corridor.green_support_fraction ?? 0)}</span><span>{terrain.corridor.stable_frames} stabile Frames · Sprung {n(terrain.corridor.stability_px, 1)} px</span>{terrain.corridor.reasons.map(item => <small key={item}>{reasonText(item)}</small>)}</div>
-            {vehicle && <div className="vehicle-readout"><b>ARGUS-Konfiguration</b><span>Fahrzeug {n(vehicle.width_m, 2)} m + je {n(vehicle.safety_margin_per_side_m, 2)} m Rand</span><span>Erforderlich {n(vehicle.required_width_m, 2)} m</span>{vehicle.source !== 'environment' && vehicle.source !== 'configured' && <small>Dokumentierte Arbeitsannahme – Breite und Kameraskala vor Einsatz am realen Fahrzeug bestätigen.</small>}</div>}
-            {selectedRegion && <div className="detection-detail"><b>{(segmentation.terrain_ontology?.[selectedRegion.class_id] ?? terrainFallback[selectedRegion.class_id]).label}</b><span>Region {selectedRegion.region_id}</span><span>KI-Evidenz {percent(selectedRegion.confidence)}</span>{selectedRegion.reasons.map(item => <small key={item}>{reasonText(item)}</small>)}</div>}
-            <h2 className="factor-heading">Bewertungsfaktoren</h2>
-            <div className="factor-bars">{factorLabels.map(([key, label]) => <Factor key={key} label={label} value={terrain.factors[key]}/>)}</div>
-            <div className="quality-readout"><span>Unschärferisiko <b>{percent(terrain.quality.blur_score)}</b></span><span>Belichtung nutzbar <b>{percent(terrain.quality.exposure_score)}</b></span><span>Motion-Inlier <b>{terrain.quality.motion_inliers}</b></span></div>
-          </> : <div className="terrain-summary unknown"><b>Nicht bewertbar</b><span>Unsichere oder fehlende Daten werden niemals automatisch grün markiert.</span></div>}
-        </>}
-      </aside>
-    </section>
-
-    <div className="safety-boundary" role="note"><b>Keine Fahrfreigabe</b><span>Diese Darstellung ist ausschließlich eine KI-gestützte Geländeeinschätzung. Verdeckte oder unsichere Bereiche gelten nicht automatisch als befahrbar. Einsatzentscheidung und Vor-Ort-Prüfung bleiben erforderlich.</span></div>
-
-    <section className="terrain-evidence">
-      <div className="section-head"><h2>Repräsentative Evidenzframes</h2><p>Jede Karte stammt aus einem berechneten Videoframe. Anklicken pausiert das Video und springt exakt zur zugehörigen Maske.</p></div>
-      <div className="evidence-frame-nav"><button onClick={() => stepAnalysisFrame(-1)}>← Vorheriger Analyseframe</button><span>{frame ? `Frame ${frame.frame_index} · ${clock(frame.timestamp_ms / 1000)}` : 'Kein Analyseframe gewählt'}</span><button onClick={() => stepAnalysisFrame(1)}>Nächster Analyseframe →</button></div>
-      {evidenceFrames.length ? <div className="terrain-evidence-grid">{evidenceFrames.map(item => {const evaluation = item.terrain!; const classId = evaluation.traversability.overall_class; const style = segmentation.terrain_ontology?.[classId] ?? terrainFallback[classId]; const imageUrl = evaluation.evidence.overlay_url ?? evaluation.evidence.image_url; return <button key={`${item.video_id}-${item.frame_index}`} className={frame?.frame_index === item.frame_index ? 'active' : ''} onClick={() => showEvidence(item)}>{imageUrl ? <img src={imageUrl} alt={`Evidenzframe ${item.frame_index}`}/> : <div className="evidence-placeholder" style={{borderColor: style.color}}>Kein Vorschaubild</div>}<span><i style={{background: style.color}}/>{style.label}</span><b>Frame {item.frame_index} · {clock(item.timestamp_ms / 1000)}</b><small>KI-Evidenz {percent(evaluation.traversability.overall_confidence)}</small>{evaluation.evidence.reasons.slice(0, 2).map(reason => <small key={reason}>{reasonText(reason)}</small>)}</button>})}</div> : <div className="empty terrain-empty">Für dieses Video sind noch keine repräsentativen Terrain-Evidenzframes hinterlegt. Ältere Analyseläufe bleiben abspielbar, müssen für die neue Bodenanalyse aber erneut verarbeitet werden.</div>}
-    </section>
-
-    <section className="sync-map"><div className="section-head"><h2>Synchronisierte Strecke</h2><p>Die Position folgt der echten Videozeit; Gegenrichtung B → A wird auf der Karte automatisch umgekehrt.</p></div><MapContainer key={traversal.video_id} center={coords[0]} zoom={18} className="map"><TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/><Polyline positions={coords} pathOptions={{color: '#65c9d5', weight: 6}}/><CircleMarker center={coords[0]} radius={8} pathOptions={{color: '#fff', fillColor: '#d7f26b', fillOpacity: 1}}/><CircleMarker center={coords.at(-1)!} radius={8} pathOptions={{color: '#fff', fillColor: '#d7f26b', fillOpacity: 1}}/><CircleMarker center={playPoint} radius={11} pathOptions={{color: '#fff', fillColor: '#4de0ed', fillOpacity: 1}}/></MapContainer></section>
-    <div className="truth-strip"><b>Ground-Truth-Regeln</b><span>Nur deine gespeicherten Markierungen werden Trainingslabels.</span><span>Unmarkierte Pixel werden ignoriert, nicht als Hindernis interpretiert.</span><span>KI-Vorschläge bleiben Entwürfe, bis du sie bestätigst.</span><span>Grau bedeutet ausdrücklich nicht bewertbar.</span><span>{data.keyframes.length} ursprüngliche Evidenz-Keyframes bleiben erhalten.</span></div>
-  </div>
+      <section className="sync-map">
+        <div className="section-head">
+          <h2>Synchronisierte Strecke</h2>
+          <p>Die Position folgt der echten Videozeit; Gegenrichtung B → A wird auf der Karte automatisch umgekehrt.</p>
+        </div>
+        <MapContainer key={traversal.video_id} center={coords[0]} zoom={18} className="map">
+          <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <Polyline positions={coords} pathOptions={{color: '#65c9d5', weight: 6}} />
+          <CircleMarker center={coords[0]} radius={8} pathOptions={{color: '#fff', fillColor: '#d7f26b', fillOpacity: 1}} />
+          <CircleMarker center={coords.at(-1)!} radius={8} pathOptions={{color: '#fff', fillColor: '#d7f26b', fillOpacity: 1}} />
+          <CircleMarker center={playPoint} radius={11} pathOptions={{color: '#fff', fillColor: '#4de0ed', fillOpacity: 1}} />
+        </MapContainer>
+      </section>
+      <div className="truth-strip">
+        <b>Ground-Truth-Regeln</b>
+        <span>Nur deine gespeicherten Markierungen werden Trainingslabels.</span>
+        <span>Unmarkierte Pixel werden ignoriert, nicht als Hindernis interpretiert.</span>
+        <span>KI-Vorschläge bleiben Entwürfe, bis du sie bestätigst.</span>
+        <span>Grau bedeutet ausdrücklich nicht bewertbar.</span>
+        <span>{data.keyframes.length} ursprüngliche Evidenz-Keyframes bleiben erhalten.</span>
+      </div>
+    </div>
+  )
 }
 
 function Metric({label, value}: {label: string; value: string}) {
-  return <div className="metric"><span>{label}</span><b>{value}</b></div>
+  return (
+    <div className="metric">
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  )
 }
 
 function Factor({label, value}: {label: string; value: number}) {
-  return <div><span>{label}</span><i><b style={{width: percent(value)}}/></i><small>{percent(value)}</small></div>
+  return (
+    <div>
+      <span>{label}</span>
+      <i>
+        <b style={{width: percent(value)}} />
+      </i>
+      <small>{percent(value)}</small>
+    </div>
+  )
 }

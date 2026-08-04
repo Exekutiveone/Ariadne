@@ -24,14 +24,24 @@ export default function App() {
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState<Mission | null>(null)
-  const [analysis, setAnalysis] = useState<{mission: Mission; data: Analysis; reconstruction: Reconstruction; segmentation: Segmentation} | null>(null)
+  const [analysis, setAnalysis] = useState<{
+    mission: Mission
+    data: Analysis
+    reconstruction: Reconstruction
+    segmentation: Segmentation
+  } | null>(null)
   const [labelingMission, setLabelingMission] = useState<Mission | null>(null)
   const [modelCenter, setModelCenter] = useState(false)
   const [registry, setRegistry] = useState(false)
 
-  const refresh = () => listMissions().then(setMissions).catch(error => setError(error.message))
+  const refresh = () =>
+    listMissions()
+      .then(setMissions)
+      .catch(problem => setError(problem.message))
 
-  useEffect(() => {void refresh()}, [])
+  useEffect(() => {
+    void refresh()
+  }, [])
 
   const setEndpoint = (index: number, key: 'lat' | 'lng', value: string) => {
     const next = [...route]
@@ -42,14 +52,12 @@ export default function App() {
 
   const files = (list: FileList | null) => {
     if (!list) return
-    const incoming = [...list]
-      .slice(0, 4 - videos.length)
-      .map(file => ({
-        file,
-        direction: 'A_TO_B' as const,
-        orientation: (file.name.toLowerCase().includes('portrait') ? 'PORTRAIT' : 'LANDSCAPE') as VideoInput['orientation'],
-        terrainCategory: '',
-      }))
+    const incoming = [...list].slice(0, 4 - videos.length).map(file => ({
+      file,
+      direction: 'A_TO_B' as const,
+      orientation: (file.name.toLowerCase().includes('portrait') ? 'PORTRAIT' : 'LANDSCAPE') as VideoInput['orientation'],
+      terrainCategory: '',
+    }))
     setVideos(current => [...current, ...incoming])
   }
 
@@ -93,8 +101,8 @@ export default function App() {
       setVideos([])
       setNotes('')
       refresh()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Upload fehlgeschlagen')
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : 'Upload fehlgeschlagen')
     } finally {
       setProgress(null)
     }
@@ -109,8 +117,8 @@ export default function App() {
         getSegmentation(mission.id),
       ])
       setAnalysis({mission, data, reconstruction, segmentation})
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Auswertung nicht verfügbar')
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : 'Auswertung nicht verfügbar')
     }
   }
 
@@ -156,7 +164,12 @@ export default function App() {
   if (registry) {
     return (
       <main>
-        <RunRegistry onClose={() => {setRegistry(false); void refresh()}} />
+        <RunRegistry
+          onClose={() => {
+            setRegistry(false)
+            void refresh()
+          }}
+        />
       </main>
     )
   }
@@ -172,7 +185,10 @@ export default function App() {
         <div className="header-actions">
           <button onClick={() => setRegistry(true)}>RUN-REGISTRY</button>
           <button onClick={() => setModelCenter(true)}>KI-MODELLZENTRUM</button>
-          <div className="status"><i />SYSTEM BEREIT</div>
+          <div className="status">
+            <i />
+            SYSTEM BEREIT
+          </div>
         </div>
       </header>
 
@@ -189,18 +205,44 @@ export default function App() {
               <input value={name} onChange={e => setName(e.target.value)} placeholder="z. B. Nordhang Vorerkundung" maxLength={120} />
             </label>
             <div className="coords">
-              <label>Start A · Breite<input type="number" step="any" value={route[0]?.lat ?? ''} onChange={e => setEndpoint(0, 'lat', e.target.value)} /></label>
-              <label>Start A · Länge<input type="number" step="any" value={route[0]?.lng ?? ''} onChange={e => setEndpoint(0, 'lng', e.target.value)} /></label>
-              <label>Ende B · Breite<input type="number" step="any" value={route.at(-1)?.lat ?? ''} onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lat', e.target.value)} /></label>
-              <label>Ende B · Länge<input type="number" step="any" value={route.at(-1)?.lng ?? ''} onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lng', e.target.value)} /></label>
+              <label>
+                Start A · Breite
+                <input type="number" step="any" value={route[0]?.lat ?? ''} onChange={e => setEndpoint(0, 'lat', e.target.value)} />
+              </label>
+              <label>
+                Start A · Länge
+                <input type="number" step="any" value={route[0]?.lng ?? ''} onChange={e => setEndpoint(0, 'lng', e.target.value)} />
+              </label>
+              <label>
+                Ende B · Breite
+                <input
+                  type="number"
+                  step="any"
+                  value={route.at(-1)?.lat ?? ''}
+                  onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lat', e.target.value)}
+                />
+              </label>
+              <label>
+                Ende B · Länge
+                <input
+                  type="number"
+                  step="any"
+                  value={route.at(-1)?.lng ?? ''}
+                  onChange={e => setEndpoint(Math.max(1, route.length - 1), 'lng', e.target.value)}
+                />
+              </label>
             </div>
             <SurveyMap route={route} onChange={setRoute} />
             <div className="route-readout">
               {route.length >= 2 ? (
                 <>
                   <b>{route.length} Wegpunkte</b>
-                  <span>A {fmt(route[0].lat)}, {fmt(route[0].lng)}</span>
-                  <span>B {fmt(route.at(-1)!.lat)}, {fmt(route.at(-1)!.lng)}</span>
+                  <span>
+                    A {fmt(route[0].lat)}, {fmt(route[0].lng)}
+                  </span>
+                  <span>
+                    B {fmt(route.at(-1)!.lat)}, {fmt(route.at(-1)!.lng)}
+                  </span>
                 </>
               ) : (
                 <span>Setze mindestens Start A und Ende B auf der Karte.</span>
@@ -227,21 +269,34 @@ export default function App() {
                     <select
                       aria-label={`Terrainkategorie ${index + 1}`}
                       value={video.terrainCategory ?? ''}
-                      onChange={e => setVideos(current => current.map((item, itemIndex) => itemIndex === index ? {...item, terrainCategory: e.target.value} : item))}
+                      onChange={e =>
+                        setVideos(current =>
+                          current.map((item, itemIndex) => (itemIndex === index ? {...item, terrainCategory: e.target.value} : item)),
+                        )
+                      }
                     >
                       <option value="">Terrainkategorie wählen …</option>
                       {TERRAIN_CATEGORY_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
                       ))}
                     </select>
                     <small>
-                      {(video.file.size / 1024 / 1024).toFixed(1)} MB · {video.terrainCategory ? terrainCategoryLabel(video.terrainCategory) : 'Terrainkategorie fehlt'}
+                      {(video.file.size / 1024 / 1024).toFixed(1)} MB ·{' '}
+                      {video.terrainCategory ? terrainCategoryLabel(video.terrainCategory) : 'Terrainkategorie fehlt'}
                     </small>
                   </div>
                   <select
                     aria-label={`Laufrichtung ${index + 1}`}
                     value={video.direction}
-                    onChange={e => setVideos(current => current.map((item, itemIndex) => itemIndex === index ? {...item, direction: e.target.value as VideoInput['direction']} : item))}
+                    onChange={e =>
+                      setVideos(current =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? {...item, direction: e.target.value as VideoInput['direction']} : item,
+                        ),
+                      )
+                    }
                   >
                     <option value="A_TO_B">A → B</option>
                     <option value="B_TO_A">B → A</option>
@@ -249,12 +304,20 @@ export default function App() {
                   <select
                     aria-label={`Ausrichtung ${index + 1}`}
                     value={video.orientation}
-                    onChange={e => setVideos(current => current.map((item, itemIndex) => itemIndex === index ? {...item, orientation: e.target.value as VideoInput['orientation']} : item))}
+                    onChange={e =>
+                      setVideos(current =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? {...item, orientation: e.target.value as VideoInput['orientation']} : item,
+                        ),
+                      )
+                    }
                   >
                     <option value="LANDSCAPE">Querformat</option>
                     <option value="PORTRAIT">Hochformat</option>
                   </select>
-                  <button type="button" onClick={() => setVideos(current => current.filter((_, itemIndex) => itemIndex !== index))}>Entfernen</button>
+                  <button type="button" onClick={() => setVideos(current => current.filter((_, itemIndex) => itemIndex !== index))}>
+                    Entfernen
+                  </button>
                 </div>
               ))}
             </div>
@@ -267,10 +330,22 @@ export default function App() {
               <p>Optional: tatsächliche Aufnahmezeit, Pause und Feldnotizen</p>
             </div>
             <div className="coords">
-              <label>Bewegungsbeginn<input type="datetime-local" value={moveStart} onChange={e => setMoveStart(e.target.value)} /></label>
-              <label>Bewegungsende<input type="datetime-local" value={moveEnd} onChange={e => setMoveEnd(e.target.value)} /></label>
-              <label>Pause ab Sekunde<input type="number" min="0" value={pauseStart} onChange={e => setPauseStart(e.target.value)} /></label>
-              <label>Pause bis Sekunde<input type="number" min="0" value={pauseEnd} onChange={e => setPauseEnd(e.target.value)} /></label>
+              <label>
+                Bewegungsbeginn
+                <input type="datetime-local" value={moveStart} onChange={e => setMoveStart(e.target.value)} />
+              </label>
+              <label>
+                Bewegungsende
+                <input type="datetime-local" value={moveEnd} onChange={e => setMoveEnd(e.target.value)} />
+              </label>
+              <label>
+                Pause ab Sekunde
+                <input type="number" min="0" value={pauseStart} onChange={e => setPauseStart(e.target.value)} />
+              </label>
+              <label>
+                Pause bis Sekunde
+                <input type="number" min="0" value={pauseEnd} onChange={e => setPauseEnd(e.target.value)} />
+              </label>
             </div>
             <label>
               Notizen
@@ -282,7 +357,11 @@ export default function App() {
             </label>
           </section>
 
-          {error && <div role="alert" className="alert error">{error}</div>}
+          {error && (
+            <div role="alert" className="alert error">
+              {error}
+            </div>
+          )}
           {success && (
             <div role="status" className="alert success">
               <b>Mission sicher gespeichert</b>
@@ -300,7 +379,9 @@ export default function App() {
             <span className={name.trim().length >= 3 ? 'done' : ''}>Missionsname</span>
             <span className={route.length >= 2 ? 'done' : ''}>Route A–B</span>
             <span className={videos.length > 0 && videos.length <= 4 ? 'done' : ''}>1–4 Videos</span>
-            <span className={videos.length > 0 && videos.length <= 4 && videos.every(video => video.terrainCategory?.trim()) ? 'done' : ''}>Terrainkategorien</span>
+            <span className={videos.length > 0 && videos.length <= 4 && videos.every(video => video.terrainCategory?.trim()) ? 'done' : ''}>
+              Terrainkategorien
+            </span>
           </div>
           <button className="submit" disabled={progress !== null} type="submit">
             MISSION PERSISTENT SPEICHERN <span>→</span>
@@ -318,9 +399,16 @@ export default function App() {
                 <span className="ready">GROUND TRUTH BEREIT</span>
                 <h3>{mission.name}</h3>
                 <p>{new Date(mission.created_at).toLocaleString('de-DE')}</p>
-                <div>{mission.route.length} Wegpunkte · {mission.videos.length} Videos · {mission.videos.map(video => terrainCategoryLabel(video.terrain_category)).join(' · ')}</div>
-                <button className="analysis-button labeling-entry" type="button" onClick={() => setLabelingMission(mission)}>BEFAHRBAREN WEG LABELN →</button>
-                <button className="analysis-button secondary" type="button" onClick={() => void openAnalysis(mission)}>VORHANDENE AUSWERTUNG ÖFFNEN</button>
+                <div>
+                  {mission.route.length} Wegpunkte · {mission.videos.length} Videos ·{' '}
+                  {mission.videos.map(video => terrainCategoryLabel(video.terrain_category)).join(' · ')}
+                </div>
+                <button className="analysis-button labeling-entry" type="button" onClick={() => setLabelingMission(mission)}>
+                  BEFAHRBAREN WEG LABELN →
+                </button>
+                <button className="analysis-button secondary" type="button" onClick={() => void openAnalysis(mission)}>
+                  VORHANDENE AUSWERTUNG ÖFFNEN
+                </button>
                 <code>{mission.id.slice(0, 8)}</code>
               </article>
             ))

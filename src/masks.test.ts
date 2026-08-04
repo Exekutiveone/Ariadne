@@ -34,8 +34,8 @@ test('orders legend entries by class value', () => {
 test('reports class shares directly from the run-length encoding', () => {
   const shares = maskShares({width: 2, height: 2, rle: [1, 2, 5, 2]})
 
-  expect(shares[1]).toBeCloseTo(.5)
-  expect(shares[5]).toBeCloseTo(.5)
+  expect(shares[1]).toBeCloseTo(0.5)
+  expect(shares[5]).toBeCloseTo(0.5)
 })
 
 test('round-trips values through the run-length encoding', () => {
@@ -50,8 +50,8 @@ test('round-trips values through the run-length encoding', () => {
 test('resolves the class under a normalized point', () => {
   const mask = {width: 2, height: 2, rle: [0, 1, 2, 1, 3, 1, 1, 1]}
 
-  expect(rleValueAt(mask, [.75, .25])).toBe(2)
-  expect(rleValueAt(mask, [.25, .75])).toBe(3)
+  expect(rleValueAt(mask, [0.75, 0.25])).toBe(2)
+  expect(rleValueAt(mask, [0.25, 0.75])).toBe(3)
 })
 
 test('keeps the binary fallback palette turquoise for path pixels only', () => {

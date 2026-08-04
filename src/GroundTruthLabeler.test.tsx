@@ -1,15 +1,48 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {beforeEach, expect, test, vi} from 'vitest'
 
-const updateVideoTerrainCategory = vi.hoisted(() => vi.fn(async () => ({id: 'video-1', original_name: 'Waldweg.mp4', terrain_category: 'walduntergrund'})))
+const updateVideoTerrainCategory = vi.hoisted(() =>
+  vi.fn(async () => ({id: 'video-1', original_name: 'Waldweg.mp4', terrain_category: 'walduntergrund'})),
+)
 
 vi.mock('./api', () => ({
   getLabelingVideos: async () => ({
-    mission_id: 'mission-1', source: 'original_video_metadata_only', automatic_processing_started: false,
-    videos: [{video_id: 'video-1', original_name: 'Waldweg.mp4', fps: 30, total_frames: 2400, width: 1920, height: 1080, duration_seconds: 80, terrain_category: 'schotterweg'}],
+    mission_id: 'mission-1',
+    source: 'original_video_metadata_only',
+    automatic_processing_started: false,
+    videos: [
+      {
+        video_id: 'video-1',
+        original_name: 'Waldweg.mp4',
+        fps: 30,
+        total_frames: 2400,
+        width: 1920,
+        height: 1080,
+        duration_seconds: 80,
+        terrain_category: 'schotterweg',
+      },
+    ],
   }),
   getGroundTruth: async () => null,
-  listGroundTruth: async () => ({schema_version: '2.0', mission_id: 'mission-1', ontology: {}, counts: {total: 1, draft: 1, confirmed: 0, skipped: 0}, items: [{video_id: 'video-1', frame_index: 10, timestamp_ms: 333, source_frame_hash: 'a'.repeat(64), status: 'draft', annotator: 'Simon', revision: 1, updated_at: '2026-08-03T00:00:00Z', statistics: {polygon_count: 1, point_count: 4, classes: {traversable: 1}}}]}),
+  listGroundTruth: async () => ({
+    schema_version: '2.0',
+    mission_id: 'mission-1',
+    ontology: {},
+    counts: {total: 1, draft: 1, confirmed: 0, skipped: 0},
+    items: [
+      {
+        video_id: 'video-1',
+        frame_index: 10,
+        timestamp_ms: 333,
+        source_frame_hash: 'a'.repeat(64),
+        status: 'draft',
+        annotator: 'Simon',
+        revision: 1,
+        updated_at: '2026-08-03T00:00:00Z',
+        statistics: {polygon_count: 1, point_count: 4, classes: {traversable: 1}},
+      },
+    ],
+  }),
   saveGroundTruth: vi.fn(),
   updateVideoTerrainCategory,
   runSegmentation: vi.fn(),
@@ -21,7 +54,13 @@ vi.mock('./api', () => ({
   trainPathModel: vi.fn(),
 }))
 
-import GroundTruthLabeler, {buildFrameSelection, normalizedPointFromBounds, pointerAction, polygonForNextFrame, rleValueAt} from './GroundTruthLabeler'
+import GroundTruthLabeler, {
+  buildFrameSelection,
+  normalizedPointFromBounds,
+  pointerAction,
+  polygonForNextFrame,
+  rleValueAt,
+} from './GroundTruthLabeler'
 
 beforeEach(() => {
   updateVideoTerrainCategory.mockClear()
@@ -33,12 +72,16 @@ test('builds selectable frame sets by stride or requested count', () => {
 })
 
 test('keeps polygon coordinates stable when the viewport is zoomed and panned', () => {
-  expect(normalizedPointFromBounds(250, 400, {left: 0, top: 0, width: 1000, height: 800})).toEqual([.25, .5])
-  expect(normalizedPointFromBounds(600, 850, {left: 100, top: 50, width: 2000, height: 1600})).toEqual([.25, .5])
+  expect(normalizedPointFromBounds(250, 400, {left: 0, top: 0, width: 1000, height: 800})).toEqual([0.25, 0.5])
+  expect(normalizedPointFromBounds(600, 850, {left: 100, top: 50, width: 2000, height: 1600})).toEqual([0.25, 0.5])
 })
 
 test('carries polygons only forward and always prioritizes vertex dragging', () => {
-  const polygon = [[.1, .8], [.5, .3], [.9, .8]] as [number, number][]
+  const polygon = [
+    [0.1, 0.8],
+    [0.5, 0.3],
+    [0.9, 0.8],
+  ] as [number, number][]
   expect(polygonForNextFrame(polygon, 1)).toEqual(polygon)
   expect(polygonForNextFrame(polygon, -1)).toBeNull()
   expect(pointerAction('pan', 1, true, true)).toBe('vertex')
@@ -48,12 +91,18 @@ test('carries polygons only forward and always prioritizes vertex dragging', () 
 
 test('finds a clicked error class inside an RLE comparison mask', () => {
   const mask = {width: 2, height: 2, rle: [0, 1, 2, 1, 3, 1, 1, 1]}
-  expect(rleValueAt(mask, [.75, .25])).toBe(2)
-  expect(rleValueAt(mask, [.25, .75])).toBe(3)
+  expect(rleValueAt(mask, [0.75, 0.25])).toBe(2)
+  expect(rleValueAt(mask, [0.25, 0.75])).toBe(3)
 })
 
 test('shows a pure manual polygon workflow with zoom, editing and explicit processing', async () => {
-  render(<GroundTruthLabeler mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any} onClose={() => undefined} onProcessingComplete={() => undefined}/>)
+  render(
+    <GroundTruthLabeler
+      mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any}
+      onClose={() => undefined}
+      onProcessingComplete={() => undefined}
+    />,
+  )
 
   await waitFor(() => expect(screen.getByText('Frame 1 von 2.400')).toBeInTheDocument())
   expect(screen.getByText('Auswahl 1 von 240')).toBeInTheDocument()
@@ -82,7 +131,14 @@ test('shows a pure manual polygon workflow with zoom, editing and explicit proce
 
 test('allows editing the terrain category of an existing video from the inventory', async () => {
   const onMissionUpdated = vi.fn()
-  render(<GroundTruthLabeler mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any} onClose={() => undefined} onProcessingComplete={() => undefined} onMissionUpdated={onMissionUpdated}/>)
+  render(
+    <GroundTruthLabeler
+      mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any}
+      onClose={() => undefined}
+      onProcessingComplete={() => undefined}
+      onMissionUpdated={onMissionUpdated}
+    />,
+  )
 
   const categorySelect = await screen.findByRole('combobox', {name: 'Terrainkategorie'})
   await waitFor(() => expect(categorySelect).toHaveValue('schotterweg'))

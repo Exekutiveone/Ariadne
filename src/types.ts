@@ -1,25 +1,94 @@
 export type Point = {lat: number; lng: number}
-export type VideoInput = {file: File; direction: 'A_TO_B' | 'B_TO_A'; orientation: 'PORTRAIT' | 'LANDSCAPE'; terrainCategory?: string | null}
-export type Mission = {id: string; name: string; status: 'READY_FOR_GOAL_2'; created_at: string; route: Point[]; videos: {id: string; original_name: string; size_bytes: number; terrain_category?: string | null}[]}
+export type VideoInput = {
+  file: File
+  direction: 'A_TO_B' | 'B_TO_A'
+  orientation: 'PORTRAIT' | 'LANDSCAPE'
+  terrainCategory?: string | null
+}
+export type Mission = {
+  id: string
+  name: string
+  status: 'READY_FOR_GOAL_2'
+  created_at: string
+  route: Point[]
+  videos: {id: string; original_name: string; size_bytes: number; terrain_category?: string | null}[]
+}
 
 export type Analysis = {
   mission_id: string
   wrap_up: Record<string, {status: string; basis: string; confidence?: number}>
-  route: {coordinates: Point[]; unique_length_m: {value: number; status: string}; walked_total_m: {value: number; status: string; assumption: string}}
+  route: {
+    coordinates: Point[]
+    unique_length_m: {value: number; status: string}
+    walked_total_m: {value: number; status: string; assumption: string}
+  }
   metrics: Record<string, {value: number | null; status: string; reason?: string}>
-  keyframes: {id: string; video_id: string; video_name: string; timestamp_seconds: number; route_fraction: number; position: Point; image_url: string; sharpness: number; features: Record<string, number>}[]
-  observations: {id: string; frame_id: string; category: string; label: string; confidence: number; value_status: string; position: Point; evidence_url: string; evidence_urls: string[]; raw_detection_count: number; object_status: string}[]
+  keyframes: {
+    id: string
+    video_id: string
+    video_name: string
+    timestamp_seconds: number
+    route_fraction: number
+    position: Point
+    image_url: string
+    sharpness: number
+    features: Record<string, number>
+  }[]
+  observations: {
+    id: string
+    frame_id: string
+    category: string
+    label: string
+    confidence: number
+    value_status: string
+    position: Point
+    evidence_url: string
+    evidence_urls: string[]
+    raw_detection_count: number
+    object_status: string
+  }[]
   truth_rules: {ground_truth_available: boolean; frame_position_is_object_position: boolean; coverage: string; species_statement: string}
-  technical: {runtime_seconds: number; failed_files: number; unassigned_keyframes: number; map_objects_without_evidence: number; mean_sharpness: number}
+  technical: {
+    runtime_seconds: number
+    failed_files: number
+    unassigned_keyframes: number
+    map_objects_without_evidence: number
+    mean_sharpness: number
+  }
 }
 
 export type Reconstruction = {
   source: string
   geojson: {geometry: {coordinates: [number, number][]}}
   reference_route: {coordinates: [number, number][]}
-  segments: {index: number; coordinates: [[number, number], [number, number]]; confidence: number; status: 'secure' | 'uncertain' | 'not_reconstructed'; spread_m: number; evidence: {frame_id: string; image_url: string; video_name: string; timestamp_seconds: number}[]}[]
-  traversals: {video_id: string; video_name: string; direction: 'A_TO_B' | 'B_TO_A'; duration_seconds: number; tracked_fraction: number; median_matches: number; median_inliers: number; geojson: {type: 'LineString'; coordinates: [number, number][]}}[]
-  metrics: {traversals_aligned: number; tracked_frame_fraction: number; median_stable_matches: number; median_pose_inliers: number; cross_traversal_rmse_m: number; max_curve_deviation_m: number; route_length_m: number; monotonic_evidence: boolean}
+  segments: {
+    index: number
+    coordinates: [[number, number], [number, number]]
+    confidence: number
+    status: 'secure' | 'uncertain' | 'not_reconstructed'
+    spread_m: number
+    evidence: {frame_id: string; image_url: string; video_name: string; timestamp_seconds: number}[]
+  }[]
+  traversals: {
+    video_id: string
+    video_name: string
+    direction: 'A_TO_B' | 'B_TO_A'
+    duration_seconds: number
+    tracked_fraction: number
+    median_matches: number
+    median_inliers: number
+    geojson: {type: 'LineString'; coordinates: [number, number][]}
+  }[]
+  metrics: {
+    traversals_aligned: number
+    tracked_frame_fraction: number
+    median_stable_matches: number
+    median_pose_inliers: number
+    cross_traversal_rmse_m: number
+    max_curve_deviation_m: number
+    route_length_m: number
+    monotonic_evidence: boolean
+  }
   truth_rules: {geometry_source: string; scale: string; accuracy: string}
 }
 
@@ -67,30 +136,91 @@ export type GroundTruthAnnotation = {
   notes: string
   revision: number
   updated_at: string
-  statistics: {polygon_count: number; point_count: number; classes: {traversable: number}; pixels?: {unlabelled: number; traversable: number; not_traversable: number; unknown: number}; labelled_pixels?: number; labelled_fraction?: number}
+  statistics: {
+    polygon_count: number
+    point_count: number
+    classes: {traversable: number}
+    pixels?: {unlabelled: number; traversable: number; not_traversable: number; unknown: number}
+    labelled_pixels?: number
+    labelled_fraction?: number
+  }
 }
 export type GroundTruthSummary = {
   schema_version: string
   mission_id: string
   ontology: Record<string, {value: GroundTruthValue; label: string; color: string}>
   counts: {total: number; draft: number; confirmed: number; skipped: number}
-  items: (Pick<GroundTruthAnnotation, 'video_id' | 'frame_index' | 'timestamp_ms' | 'source_frame_hash' | 'status' | 'annotator' | 'revision' | 'updated_at' | 'statistics'> & {polygons?: GroundTruthPolygon[]; mask?: TerrainMask})[]
+  items: (Pick<
+    GroundTruthAnnotation,
+    'video_id' | 'frame_index' | 'timestamp_ms' | 'source_frame_hash' | 'status' | 'annotator' | 'revision' | 'updated_at' | 'statistics'
+  > & {polygons?: GroundTruthPolygon[]; mask?: TerrainMask})[]
 }
-export type LabelingVideo = {video_id: string; original_name: string; fps: number; total_frames: number; width: number; height: number; duration_seconds: number; terrain_category?: string | null}
-export type LabelingVideoManifest = {mission_id: string; source: 'original_video_metadata_only'; automatic_processing_started: false; videos: LabelingVideo[]}
-export type PathModelMetrics = {tp: number; tn: number; fp: number; fn: number; missed_label_fraction: number; invented_path_fraction: number; symmetric_penalty_points: number; symmetric_score: number; iou: number; dice: number; precision: number; recall: number}
+export type LabelingVideo = {
+  video_id: string
+  original_name: string
+  fps: number
+  total_frames: number
+  width: number
+  height: number
+  duration_seconds: number
+  terrain_category?: string | null
+}
+export type LabelingVideoManifest = {
+  mission_id: string
+  source: 'original_video_metadata_only'
+  automatic_processing_started: false
+  videos: LabelingVideo[]
+}
+export type PathModelMetrics = {
+  tp: number
+  tn: number
+  fp: number
+  fn: number
+  missed_label_fraction: number
+  invented_path_fraction: number
+  symmetric_penalty_points: number
+  symmetric_score: number
+  iou: number
+  dice: number
+  precision: number
+  recall: number
+}
 export type PathModelResult = {
   schema_version: string
   run_id: string
   mission_id: string
   created_at: string
-  model: {id: string; type: string; hardware: 'CPU'; cloud_used: false; input_width: number; feature_count: number; random_features: number; threshold: number; postprocessing: string}
+  model: {
+    id: string
+    type: string
+    hardware: 'CPU'
+    cloud_used: false
+    input_width: number
+    feature_count: number
+    random_features: number
+    threshold: number
+    postprocessing: string
+  }
   ground_truth: {positive: string; negative: string; confirmed_frames: number; videos: number}
-  split: {strategy: string; train_frames: number; validation_frames: number; training_pixels_sampled: number; same_frame_in_train_and_validation: false}
+  split: {
+    strategy: string
+    train_frames: number
+    validation_frames: number
+    training_pixels_sampled: number
+    same_frame_in_train_and_validation: false
+  }
   scoring: {rule: string; threshold_selection: PathModelMetrics}
   train_metrics: PathModelMetrics
   validation_metrics: PathModelMetrics
-  evidence: {kind: string; video_id: string; frame_index: number; timestamp_ms: number; metrics: PathModelMetrics; image_url: string; legend: Record<string, string>}[]
+  evidence: {
+    kind: string
+    video_id: string
+    frame_index: number
+    timestamp_ms: number
+    metrics: PathModelMetrics
+    image_url: string
+    legend: Record<string, string>
+  }[]
   runtime_seconds: number
   limitations: string[]
 }
@@ -107,26 +237,107 @@ export type Grading = {
   smoothing: string
   note: string
 }
-export type PathPrediction = {schema_version: string; model_run_id: string; video_id: string; frame_index: number; timestamp_ms: number; mask: TerrainMask; grade_mask?: TerrainMask; grade_ontology?: GradeOntology; grading?: Grading; path_fraction: number; mean_separation: number; confidence_note: string; source: string; evaluation?: {annotation_status: GroundTruthStatus; metrics: PathModelMetrics; comparison_mask: TerrainMask; legend: Record<string, string>; refinement_count: number}}
-export type PathTrainingJob = {job_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'; profile: 'quick' | 'overnight'; duration_hours: number; pid: number; started_at: string; finished_at: string | null; candidates_completed: number; maximum_candidates: number; initial_run_id?: string | null; best_run_id: string | null; best_validation_score: number | null; message: string; last_candidate_run_id?: string; last_configuration?: Record<string, number>}
+export type PathPrediction = {
+  schema_version: string
+  model_run_id: string
+  video_id: string
+  frame_index: number
+  timestamp_ms: number
+  mask: TerrainMask
+  grade_mask?: TerrainMask
+  grade_ontology?: GradeOntology
+  grading?: Grading
+  path_fraction: number
+  mean_separation: number
+  confidence_note: string
+  source: string
+  evaluation?: {
+    annotation_status: GroundTruthStatus
+    metrics: PathModelMetrics
+    comparison_mask: TerrainMask
+    legend: Record<string, string>
+    refinement_count: number
+  }
+}
+export type PathTrainingJob = {
+  job_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'
+  profile: 'quick' | 'overnight'
+  duration_hours: number
+  pid: number
+  started_at: string
+  finished_at: string | null
+  candidates_completed: number
+  maximum_candidates: number
+  initial_run_id?: string | null
+  best_run_id: string | null
+  best_validation_score: number | null
+  message: string
+  last_candidate_run_id?: string
+  last_configuration?: Record<string, number>
+}
 export type GlobalPathModelResult = {
-  schema_version: string; scope: 'global_cross_mission'; run_id: string; created_at: string
-  model: {id: string; type: string; hardware: 'CPU'; cloud_used: false; input_width: number; feature_count: number; random_features: number; threshold: number}
-  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; train_frames: number; validation_frames: number}[]; confirmed_frames: number; videos: number; refinements_included: number; critical_flags_included: number}
-  split: {strategy: string; train_frames: number; validation_frames: number; training_pixels_sampled: number; same_frame_in_train_and_validation: false}
-  train_metrics: PathModelMetrics; validation_metrics: PathModelMetrics
+  schema_version: string
+  scope: 'global_cross_mission'
+  run_id: string
+  created_at: string
+  model: {
+    id: string
+    type: string
+    hardware: 'CPU'
+    cloud_used: false
+    input_width: number
+    feature_count: number
+    random_features: number
+    threshold: number
+  }
+  dataset: {
+    missions: {mission_id: string; name: string; confirmed_frames: number; train_frames: number; validation_frames: number}[]
+    confirmed_frames: number
+    videos: number
+    refinements_included: number
+    critical_flags_included: number
+  }
+  split: {
+    strategy: string
+    train_frames: number
+    validation_frames: number
+    training_pixels_sampled: number
+    same_frame_in_train_and_validation: false
+  }
+  train_metrics: PathModelMetrics
+  validation_metrics: PathModelMetrics
   evidence: {kind: string; video_id: string; frame_index: number; timestamp_ms: number; metrics: PathModelMetrics; image_url: string}[]
-  runtime_seconds: number; limitations: string[]
+  runtime_seconds: number
+  limitations: string[]
 }
 export type GlobalModelDashboardData = {
-  dataset: {missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}[]; totals: {missions: number; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}}
+  dataset: {
+    missions: {mission_id: string; name: string; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}[]
+    totals: {missions: number; confirmed_frames: number; videos: number; refinements: number; critical_flags: number}
+  }
   model: GlobalPathModelResult | null
 }
 /* Run-Registry: ein Run ist genau ein Originalvideo. */
 export type RunStatus = 'unlabeled' | 'queued_for_labeling' | 'labeled' | 'training_ready'
-export type RegistryRun = {run_id: string; mission_id: string; video_id: string; mission_name: string; original_name: string; video_available: boolean; size_bytes: number; status: RunStatus; status_label: string; terrain_category: string | null; note: string; discovered_at: string; updated_at: string}
+export type RegistryRun = {
+  run_id: string
+  mission_id: string
+  video_id: string
+  mission_name: string
+  original_name: string
+  video_available: boolean
+  size_bytes: number
+  status: RunStatus
+  status_label: string
+  terrain_category: string | null
+  note: string
+  discovered_at: string
+  updated_at: string
+}
 export type RegistryListing = {
-  schema_version: string; database: string
+  schema_version: string
+  database: string
   scan: {added: number; removed: string[]; total: number | null}
   statuses: {value: RunStatus; label: string}[]
   counts: Record<RunStatus, number>
@@ -140,11 +351,47 @@ export type RegistryListing = {
 export type CorridorStatus = 'free' | 'blocked' | 'uncertain'
 export type CorridorId = 'mitte' | 'rechts' | 'links'
 /** geometry/trajectory sind auf das Bild normiert (0..1), nicht in Pixeln des Modellrasters. */
-export type CorridorResult = {corridor: CorridorId; label: string; meaning: string; status: CorridorStatus; status_label: string; reason: string; rows: {evaluated: number; free: number; uncertain: number; blocked: number}; bottom_center_x: number; geometry: {center: number[][]; left: number[][]; right: number[][]}; trajectory: {points: number[][]; rows: number; source: string}}
-export type ProposedTrajectory = {corridor: CorridorId; label: string; status: CorridorStatus; status_label: string; points: number[][]; source: string; note: string}
-export type StoredTrajectory = {schema_version: string; mission_id: string; video_id: string; frame_index: number; timestamp_ms: number; points: number[][]; corridor: CorridorId | null; origin: 'model_proposal' | 'manual_edit' | 'manual'; note: string; annotator: string; coordinate_space: string; revision: number; created_at: string; updated_at: string}
+export type CorridorResult = {
+  corridor: CorridorId
+  label: string
+  meaning: string
+  status: CorridorStatus
+  status_label: string
+  reason: string
+  rows: {evaluated: number; free: number; uncertain: number; blocked: number}
+  bottom_center_x: number
+  geometry: {center: number[][]; left: number[][]; right: number[][]}
+  trajectory: {points: number[][]; rows: number; source: string}
+}
+export type ProposedTrajectory = {
+  corridor: CorridorId
+  label: string
+  status: CorridorStatus
+  status_label: string
+  points: number[][]
+  source: string
+  note: string
+}
+export type StoredTrajectory = {
+  schema_version: string
+  mission_id: string
+  video_id: string
+  frame_index: number
+  timestamp_ms: number
+  points: number[][]
+  corridor: CorridorId | null
+  origin: 'model_proposal' | 'manual_edit' | 'manual'
+  note: string
+  annotator: string
+  coordinate_space: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
 export type CorridorCheck = {
-  schema_version: string; kind: string; mask_size: {width: number; height: number}
+  schema_version: string
+  kind: string
+  mask_size: {width: number; height: number}
   decomposition: {
     vanishing_point: {x: number; y: number; source: string; rows_used: number; residual_px: number | null}
     relevant_triangle: number[][]
@@ -155,51 +402,205 @@ export type CorridorCheck = {
     first_evaluated_row_normalized: number
   }
   proposed_trajectory: ProposedTrajectory | null
-  strip: {vehicle_width_m: number; clearance_m: number; required_width_m: number; ground_width_at_bottom_m: number; required_width_px_at_bottom: number; scaling: string; search_band_factor: number}
+  strip: {
+    vehicle_width_m: number
+    clearance_m: number
+    required_width_m: number
+    ground_width_at_bottom_m: number
+    required_width_px_at_bottom: number
+    scaling: string
+    search_band_factor: number
+  }
   corridors: CorridorResult[]
   graded_input: boolean
   limitations: string[]
-  model_run_id: string; mission_id: string; video_id: string; frame_index: number; timestamp_ms: number; path_fraction: number; source: string
+  model_run_id: string
+  mission_id: string
+  video_id: string
+  frame_index: number
+  timestamp_ms: number
+  path_fraction: number
+  source: string
 }
 
 /* Videobasierte Terrainklassifizierung. Die Klasse eines Frames ist immer die
    aktuell am Video gesetzte Kategorie; Frames tragen kein eigenes Label. */
 export type TerrainClassMetrics = {terrain_category: string; support: number; precision: number; recall: number; f1: number}
-export type TerrainMetrics = {frames: number; accuracy: number; balanced_accuracy: number; mean_confidence: number; uncertain_frames: number; uncertain_fraction: number; accuracy_on_confident: number; confusion_matrix: number[][]; per_class: TerrainClassMetrics[]}
+export type TerrainMetrics = {
+  frames: number
+  accuracy: number
+  balanced_accuracy: number
+  mean_confidence: number
+  uncertain_frames: number
+  uncertain_fraction: number
+  accuracy_on_confident: number
+  confusion_matrix: number[][]
+  per_class: TerrainClassMetrics[]
+}
 export type TerrainSplitPart = {videos: number; frames: number; classes: string[]; video_ids: string[]; all_classes: string[]}
-export type TerrainDatasetVideo = {mission_id: string; mission_name: string; video_id: string; original_name: string; terrain_category: string | null; frames?: number}
+export type TerrainDatasetVideo = {
+  mission_id: string
+  mission_name: string
+  video_id: string
+  original_name: string
+  terrain_category: string | null
+  frames?: number
+}
 export type TerrainModelResult = {
-  schema_version: string; scope: 'video_terrain_classification'; kind: 'training'; run_id: string; created_at: string
-  model: {id: string; type: string; hardware: 'CPU'; cloud_used: false; input_width: number; grid: number; feature_count: number; random_features: number; softmax_scale: number; confidence_threshold: number}
+  schema_version: string
+  scope: 'video_terrain_classification'
+  kind: 'training'
+  run_id: string
+  created_at: string
+  model: {
+    id: string
+    type: string
+    hardware: 'CPU'
+    cloud_used: false
+    input_width: number
+    grid: number
+    feature_count: number
+    random_features: number
+    softmax_scale: number
+    confidence_threshold: number
+  }
   classes: string[]
-  dataset: {frame_stride: number; label_source: string; categorized_videos: number; uncategorized_videos: number; videos: TerrainDatasetVideo[]; frames: number}
-  split: {strategy: string; random_frame_split_used: false; same_video_in_multiple_parts: false; train: TerrainSplitPart; validation: TerrainSplitPart; test: TerrainSplitPart | null; notes: string[]}
+  dataset: {
+    frame_stride: number
+    label_source: string
+    categorized_videos: number
+    uncategorized_videos: number
+    videos: TerrainDatasetVideo[]
+    frames: number
+  }
+  split: {
+    strategy: string
+    random_frame_split_used: false
+    same_video_in_multiple_parts: false
+    train: TerrainSplitPart
+    validation: TerrainSplitPart
+    test: TerrainSplitPart | null
+    notes: string[]
+  }
   calibration: {softmax_scale: number; selected_on: string; negative_log_likelihood: number}
-  train_metrics: TerrainMetrics; validation_metrics: TerrainMetrics; test_metrics: TerrainMetrics | null
-  runtime_seconds: number; limitations: string[]
+  train_metrics: TerrainMetrics
+  validation_metrics: TerrainMetrics
+  test_metrics: TerrainMetrics | null
+  runtime_seconds: number
+  limitations: string[]
 }
 /** predicted_category ist null, sobald die Konfidenz unter dem Schwellenwert liegt — dann bleibt nur top_category als unverbindliche Vermutung. */
-export type TerrainFramePrediction = {frame_index: number; timestamp_ms: number; predicted_category: string | null; top_category: string; confidence: number; uncertain: boolean; scores: Record<string, number>}
+export type TerrainFramePrediction = {
+  frame_index: number
+  timestamp_ms: number
+  predicted_category: string | null
+  top_category: string
+  confidence: number
+  uncertain: boolean
+  scores: Record<string, number>
+}
 export type TerrainPredictionRun = {
-  schema_version: string; kind: 'prediction'; run_id: string; created_at: string; model_run_id: string
-  mission_id: string; video_id: string; original_name: string; video_terrain_category: string | null
-  frame_stride: number; confidence_threshold: number; classes: string[]
-  summary: {frames: number; uncertain_frames: number; uncertain_fraction: number; mean_confidence: number; dominant_category: string; counts: Record<string, number>; matches_video_category: number | null}
-  frames: TerrainFramePrediction[]; runtime_seconds: number; limitations: string[]
+  schema_version: string
+  kind: 'prediction'
+  run_id: string
+  created_at: string
+  model_run_id: string
+  mission_id: string
+  video_id: string
+  original_name: string
+  video_terrain_category: string | null
+  frame_stride: number
+  confidence_threshold: number
+  classes: string[]
+  summary: {
+    frames: number
+    uncertain_frames: number
+    uncertain_fraction: number
+    mean_confidence: number
+    dominant_category: string
+    counts: Record<string, number>
+    matches_video_category: number | null
+  }
+  frames: TerrainFramePrediction[]
+  runtime_seconds: number
+  limitations: string[]
 }
 export type TerrainDashboardData = {
-  dataset: {videos: TerrainDatasetVideo[]; classes: {terrain_category: string; videos: number; missions: number}[]; totals: {categorized_videos: number; uncategorized_videos: number; classes: number; missions: number}; label_source: string}
+  dataset: {
+    videos: TerrainDatasetVideo[]
+    classes: {terrain_category: string; videos: number; missions: number}[]
+    totals: {categorized_videos: number; uncategorized_videos: number; classes: number; missions: number}
+    label_source: string
+  }
   model: TerrainModelResult | null
   runs: {
     active_run_id: string | null
-    training_runs: {run_id: string; kind: string; created_at: string; active: boolean; classes: string[]; frame_stride: number; confidence_threshold: number; validation_accuracy: number; test_accuracy: number | null; runtime_seconds: number}[]
-    prediction_runs: {run_id: string; kind: string; created_at: string; model_run_id: string; mission_id: string; video_id: string; original_name: string; frame_stride: number; confidence_threshold: number; predicted_frames: number; uncertain_frames: number; dominant_category: string}[]
+    training_runs: {
+      run_id: string
+      kind: string
+      created_at: string
+      active: boolean
+      classes: string[]
+      frame_stride: number
+      confidence_threshold: number
+      validation_accuracy: number
+      test_accuracy: number | null
+      runtime_seconds: number
+    }[]
+    prediction_runs: {
+      run_id: string
+      kind: string
+      created_at: string
+      model_run_id: string
+      mission_id: string
+      video_id: string
+      original_name: string
+      frame_stride: number
+      confidence_threshold: number
+      predicted_frames: number
+      uncertain_frames: number
+      dominant_category: string
+    }[]
   }
 }
-export type GlobalVideoAnalysisStatus = {job_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'; model_run_id: string; mission_id: string; video_id: string; pid: number; started_at: string; finished_at: string | null; processed_frames: number; total_frames: number; progress: number; elapsed_seconds: number; eta_seconds: number | null; message: string}
+export type GlobalVideoAnalysisStatus = {
+  job_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'
+  model_run_id: string
+  mission_id: string
+  video_id: string
+  pid: number
+  started_at: string
+  finished_at: string | null
+  processed_frames: number
+  total_frames: number
+  progress: number
+  elapsed_seconds: number
+  eta_seconds: number | null
+  message: string
+}
 /** grade_mask ist optional: Analysen aus der Zeit vor Phase 3 enthalten nur die Binärmaske. */
-export type GlobalVideoAnalysisFrame = {frame_index: number; timestamp_ms: number; mask: TerrainMask; grade_mask?: TerrainMask; path_fraction: number; evaluation?: {metrics: PathModelMetrics; comparison_mask: TerrainMask; refinement_count: number}}
-export type GlobalVideoAnalysisResult = {schema_version: string; model_run_id: string; mission_id: string; video_id: string; fps: number; total_frames: number; width: number; height: number; analyzed_frames: number; runtime_seconds: number; frames: GlobalVideoAnalysisFrame[]}
+export type GlobalVideoAnalysisFrame = {
+  frame_index: number
+  timestamp_ms: number
+  mask: TerrainMask
+  grade_mask?: TerrainMask
+  path_fraction: number
+  evaluation?: {metrics: PathModelMetrics; comparison_mask: TerrainMask; refinement_count: number}
+}
+export type GlobalVideoAnalysisResult = {
+  schema_version: string
+  model_run_id: string
+  mission_id: string
+  video_id: string
+  fps: number
+  total_frames: number
+  width: number
+  height: number
+  analyzed_frames: number
+  runtime_seconds: number
+  frames: GlobalVideoAnalysisFrame[]
+}
 export type TerrainRegion = {
   region_id: string
   class_id: TraversabilityClass
@@ -216,7 +617,14 @@ export type TerrainFrameEvaluation = {
   source_frame_hash: string
   ground: {
     mask: TerrainMask
-    regions: {region_id: string; class_id: 'ground'; polygon: NormalizedPoint[]; confidence: number; area_ratio: number; reasons: string[]}[]
+    regions: {
+      region_id: string
+      class_id: 'ground'
+      polygon: NormalizedPoint[]
+      confidence: number
+      area_ratio: number
+      reasons: string[]
+    }[]
     confidence: number
     visible_ratio: number
     source: 'current_video_frame_inference' | string
@@ -286,7 +694,14 @@ export type Segmentation = {
   mission_id: string
   model: {adapter: string; model_id: string; version: string; hardware: string}
   terrain_model?: {adapter: string; model_id: string; version: string; hardware: string; weights?: string; license?: string}
-  configuration: {analysis_hz: number; input_width: number; min_area_ratio: number; confirmation_hits: number; max_track_gap_frames: number; confidence_meaning: string}
+  configuration: {
+    analysis_hz: number
+    input_width: number
+    min_area_ratio: number
+    confirmation_hits: number
+    max_track_gap_frames: number
+    confidence_meaning: string
+  }
   ontology: Record<string, {label: string; color: string; countable: boolean; default_enabled: boolean}>
   terrain_ontology?: Record<TraversabilityClass, {label: string; color: string; value: number}>
   vehicle_configuration?: {
@@ -297,7 +712,12 @@ export type Segmentation = {
     near_field_width_m?: number
     metric_calibration?: string
   }
-  terrain_configuration?: {near_field_width_m: number; metric_calibration: string; source_frames: string; temporal_motion_minimum_inliers: number}
+  terrain_configuration?: {
+    near_field_width_m: number
+    metric_calibration: string
+    source_frames: string
+    temporal_motion_minimum_inliers: number
+  }
   videos: {
     video_id: string
     video_name: string
@@ -309,9 +729,63 @@ export type Segmentation = {
     frames: SegmentationFrame[]
     tracks: SegmentationTrack[]
     counts: {visible_individuals_latest_frame: number; confirmed_unique_per_video: {tree: number; shrub: number}}
-    metrics: {analyzed_frames: number; raw_detections: number; tracks: number; confirmed_tree_instances: number; confirmed_shrub_instances: number; average_track_length_frames: number; short_track_fraction: number; empty_frame_fraction: number; median_motion_inliers: number; inference_seconds: number; terrain_frames?: number; terrain_unique_source_hashes?: number; terrain_source_hash_unique_fraction?: number; terrain_unique_masks?: number; terrain_mask_unique_fraction?: number; terrain_mask_transition_fraction?: number; terrain_masks_vary?: boolean; corridor_available_fraction?: number; corridor_uncertain_fraction?: number; median_corridor_stability_px?: number; terrain_overall_class_frames?: Record<TraversabilityClass, number>; representative_evidence_frames?: number}
+    metrics: {
+      analyzed_frames: number
+      raw_detections: number
+      tracks: number
+      confirmed_tree_instances: number
+      confirmed_shrub_instances: number
+      average_track_length_frames: number
+      short_track_fraction: number
+      empty_frame_fraction: number
+      median_motion_inliers: number
+      inference_seconds: number
+      terrain_frames?: number
+      terrain_unique_source_hashes?: number
+      terrain_source_hash_unique_fraction?: number
+      terrain_unique_masks?: number
+      terrain_mask_unique_fraction?: number
+      terrain_mask_transition_fraction?: number
+      terrain_masks_vary?: boolean
+      corridor_available_fraction?: number
+      corridor_uncertain_fraction?: number
+      median_corridor_stability_px?: number
+      terrain_overall_class_frames?: Record<TraversabilityClass, number>
+      representative_evidence_frames?: number
+    }
   }[]
   counts: {confirmed_unique_per_video_sum: {tree: number; shrub: number}; mission_unique: null; mission_unique_reason: string}
-  metrics: {runtime_seconds: number; analyzed_frames: number; raw_detections: number; tracks: number; confirmed_tree_instances: number; confirmed_shrub_instances: number; empty_frame_fraction: number; average_track_length_frames: number; terrain_frames?: number; terrain_unique_source_hashes?: number; terrain_source_hash_unique_fraction?: number; terrain_unique_masks?: number; terrain_mask_unique_fraction?: number; terrain_mask_transition_fraction?: number; terrain_masks_vary?: boolean; corridor_available_fraction?: number; corridor_uncertain_fraction?: number; terrain_overall_class_frames?: Record<TraversabilityClass, number>; representative_evidence_frames?: number}
-  truth_rules: {ground_truth_available: boolean; species_inference: boolean; navigation_grade: boolean; individual_definition: string; cross_video_fusion?: boolean; overlays?: string; terrain_inference?: string; terrain_uncertainty?: string; metric_scale?: string; safety_disclaimer?: string}
+  metrics: {
+    runtime_seconds: number
+    analyzed_frames: number
+    raw_detections: number
+    tracks: number
+    confirmed_tree_instances: number
+    confirmed_shrub_instances: number
+    empty_frame_fraction: number
+    average_track_length_frames: number
+    terrain_frames?: number
+    terrain_unique_source_hashes?: number
+    terrain_source_hash_unique_fraction?: number
+    terrain_unique_masks?: number
+    terrain_mask_unique_fraction?: number
+    terrain_mask_transition_fraction?: number
+    terrain_masks_vary?: boolean
+    corridor_available_fraction?: number
+    corridor_uncertain_fraction?: number
+    terrain_overall_class_frames?: Record<TraversabilityClass, number>
+    representative_evidence_frames?: number
+  }
+  truth_rules: {
+    ground_truth_available: boolean
+    species_inference: boolean
+    navigation_grade: boolean
+    individual_definition: string
+    cross_video_fusion?: boolean
+    overlays?: string
+    terrain_inference?: string
+    terrain_uncertainty?: string
+    metric_scale?: string
+    safety_disclaimer?: string
+  }
 }
