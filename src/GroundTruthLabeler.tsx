@@ -1,7 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react'
 import {
+  deleteTrajectory,
   getGroundTruth,
+  getTrajectory,
+  saveTrajectory,
   getLabelingVideos,
   getPathModel,
   getPathTrainingJob,
@@ -16,6 +19,8 @@ import {
 } from './api'
 import GradeLegend from './GradeLegend'
 import {AI_BINARY_PALETTE, COMPARISON_LEGEND, COMPARISON_PALETTE, paintMaskCanvas, paletteFromGradeOntology, rleValueAt} from './masks'
+import {shapeId, useLabelOntology} from './labelOntology'
+import type {LabelShape} from './labelOntology'
 import {TERRAIN_CATEGORY_OPTIONS, terrainCategoryLabel} from './terrainCategories'
 import type {
   GroundTruthSummary,
@@ -26,6 +31,7 @@ import type {
   PathModelResult,
   PathPrediction,
   PathTrainingJob,
+  StoredTrajectory,
   TerrainMask,
 } from './types'
 
@@ -168,6 +174,21 @@ export default function GroundTruthLabeler({
   const [pan, setPan] = useState({x: 0, y: 0})
   const [maskOpacity, setMaskOpacity] = useState(0.3)
   const [fullFrameNotTraversable, setFullFrameNotTraversable] = useState(false)
+  // Die Werkzeuge bearbeiten weiterhin genau eine Fläche (`points`). Fertige
+  // Flächen wandern in diese Liste — so bleibt der eingespielte Zeichenfluss
+  // erhalten und es lassen sich trotzdem beliebig viele Klassen je Frame setzen.
+  const [shapes, setShapes] = useState<LabelShape[]>([])
+  const [shapeClass, setShapeClass] = useState('traversable')
+  const [shapeCertainty, setShapeCertainty] = useState<LabelShape['certainty']>('certain')
+  const [shapeHardNegative, setShapeHardNegative] = useState(false)
+  const [shapeNote, setShapeNote] = useState('')
+  const [editingShapeId, setEditingShapeId] = useState<string | null>(null)
+  // Trajektorie von Hand: braucht kein Modell und keinen Vorschlag.
+  const [trajectory, setTrajectory] = useState<NormalizedPoint[]>([])
+  const [storedTrajectory, setStoredTrajectory] = useState<StoredTrajectory | null>(null)
+  const [trajectoryMode, setTrajectoryMode] = useState(false)
+  const [trajectorySaving, setTrajectorySaving] = useState(false)
+  const {classesOf, describe, error: ontologyError} = useLabelOntology()
   const videoRef = useRef<HTMLVideoElement>(null)
   const aiMaskCanvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -258,6 +279,68 @@ export default function GroundTruthLabeler({
     setRefinementSelection(null)
   }, [activeVideo?.video_id, frameIndex])
 
+  // Trajektorie des Frames laden. Sie haengt nicht am Modell — hier wird von
+  // Hand gezeichnet, im Modellzentrum zusaetzlich ein Vorschlag angeboten.
+  useEffect(() => {
+    if (!activeVideo) return
+    let cancelled = false
+    void getTrajectory(mission.id, activeVideo.video_id, frameIndex)
+      .then(result => {
+        if (cancelled) return
+        setStoredTrajectory(result)
+        setTrajectory(result ? (result.points.map(point => [...point]) as NormalizedPoint[]) : [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredTrajectory(null)
+          setTrajectory([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mission.id, activeVideo?.video_id, frameIndex])
+
+  const persistTrajectory = async () => {
+    if (!activeVideo || trajectorySaving) return
+    if (trajectory.length < 2) {
+      setMessage('Eine Trajektorie braucht mindestens zwei Punkte.')
+      return
+    }
+    setTrajectorySaving(true)
+    try {
+      const saved = await saveTrajectory(mission.id, activeVideo.video_id, frameIndex, {
+        timestamp_ms: timestampMs,
+        points: trajectory,
+        corridor: null,
+        origin: 'manual',
+        note: '',
+        annotator: annotator.trim() || 'Simon',
+      })
+      setStoredTrajectory(saved)
+      setMessage(`Trajektorie für Frame ${frameIndex + 1} gespeichert (Revision ${saved.revision}, von Hand gezeichnet).`)
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Trajektorie konnte nicht gespeichert werden')
+    } finally {
+      setTrajectorySaving(false)
+    }
+  }
+
+  const discardTrajectory = async () => {
+    if (!activeVideo || trajectorySaving) return
+    setTrajectorySaving(true)
+    try {
+      if (storedTrajectory) await deleteTrajectory(mission.id, activeVideo.video_id, frameIndex)
+      setStoredTrajectory(null)
+      setTrajectory([])
+      setMessage(`Trajektorie für Frame ${frameIndex + 1} entfernt.`)
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Trajektorie konnte nicht gelöscht werden')
+    } finally {
+      setTrajectorySaving(false)
+    }
+  }
+
   // Beim Refinement muss die Vergleichsmaske sichtbar sein, weil genau deren
   // rote und gelbe Flaechen angeklickt werden.
   const effectiveAiOverlay = refinementMode ? 'comparison' : aiOverlay
@@ -310,13 +393,40 @@ export default function GroundTruthLabeler({
       .then(annotation => {
         if (cancelled) return
         const carried = carryRef.current
-        const polygon = annotation?.polygons?.[0]?.points
+        // Gespeicherte Flächen landen in der Liste; die Werkzeuge bleiben frei
+        // für die nächste. Zum Ändern wird eine Fläche gezielt zurückgeholt.
+        const stored: LabelShape[] = [...(annotation?.polygons ?? []), ...(annotation?.roi ?? [])].map((item, index) => ({
+          id: item.id || shapeId(item.class_id ?? 'traversable', index),
+          class_id: item.class_id ?? 'traversable',
+          points: copyPoints(item.points as NormalizedPoint[]),
+          certainty: item.certainty ?? 'certain',
+          origin: item.origin ?? 'manual',
+          hard_negative: item.hard_negative ?? false,
+          note: item.note ?? '',
+        }))
+        setShapes(stored)
+        setEditingShapeId(null)
+        setShapeNote('')
+        setShapeHardNegative(false)
+        const polygon = stored.length === 1 ? stored[0].points : undefined
         const carriedIntoCurrentFrame = !annotation && carried?.videoId === activeVideo.video_id && carried.frameIndex === frameIndex
         if (polygon?.length) {
+          // Genau eine Fläche: direkt zum Weiterbearbeiten öffnen, wie bisher.
+          setShapes([])
+          setShapeClass(stored[0].class_id)
+          setShapeCertainty(stored[0].certainty)
+          setShapeHardNegative(stored[0].hard_negative)
+          setShapeNote(stored[0].note)
+          setEditingShapeId(stored[0].id)
           setPoints(copyPoints(polygon))
           setTool('edit')
-          setMessage('Gespeichertes Polygon geladen und vollständig editierbar.')
+          setMessage('Gespeicherte Fläche geladen und vollständig editierbar.')
           setFullFrameNotTraversable(false)
+        } else if (stored.length > 1) {
+          setPoints([])
+          setTool('add')
+          setFullFrameNotTraversable(false)
+          setMessage(`${stored.length} gespeicherte Flächen geladen. Zum Ändern eine aus der Liste wählen.`)
         } else if (
           annotation?.mask &&
           !annotation.polygons.length &&
@@ -419,6 +529,12 @@ export default function GroundTruthLabeler({
   const pointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (loading || saving) return
     const point = pointFromEvent(event)
+    if (trajectoryMode) {
+      // Von unten nach oben sortiert: die Bahn läuft vom Fahrzeug weg.
+      setTrajectory(current => [...current, point].sort((a, b) => b[1] - a[1]))
+      setMessage('Bahnpunkt gesetzt. Rechtsklick auf einen Punkt entfernt ihn wieder.')
+      return
+    }
     if (refinementMode) {
       const comparison = pathPrediction?.evaluation?.comparison_mask
       if (!comparison) {
@@ -544,10 +660,60 @@ export default function GroundTruthLabeler({
     return true
   }
 
+  const currentShape = (): LabelShape => ({
+    id: editingShapeId ?? shapeId(shapeClass, shapes.length),
+    class_id: shapeClass,
+    points: copyPoints(points),
+    certainty: shapeCertainty,
+    origin: 'manual',
+    hard_negative: shapeHardNegative,
+    note: shapeNote,
+  })
+
+  /** Aktuelle Fläche in die Liste übernehmen und die Werkzeuge freimachen. */
+  const commitShape = () => {
+    if (!hasPolygon) {
+      setMessage('Setze mindestens drei Punkte, bevor du die Fläche übernimmst.')
+      return
+    }
+    const shape = currentShape()
+    setShapes(current => [...current.filter(item => item.id !== shape.id), shape])
+    setPoints([])
+    setEditingShapeId(null)
+    setShapeNote('')
+    setShapeHardNegative(false)
+    setTool('add')
+    setDirty(true)
+    setMessage(`${describe(shape.class_id).label} übernommen. Nächste Fläche kann gezeichnet werden.`)
+  }
+
+  /** Eine übernommene Fläche zurück in die Werkzeuge holen. */
+  const editShape = (shape: LabelShape) => {
+    if (hasPolygon && !editingShapeId) {
+      setMessage('Übernimm oder lösche zuerst die aktuelle Fläche.')
+      return
+    }
+    setShapes(current => current.filter(item => item.id !== shape.id))
+    setPoints(copyPoints(shape.points))
+    setShapeClass(shape.class_id)
+    setShapeCertainty(shape.certainty)
+    setShapeHardNegative(shape.hard_negative)
+    setShapeNote(shape.note)
+    setEditingShapeId(shape.id)
+    setTool('edit')
+    setMessage(`${describe(shape.class_id).label} zum Bearbeiten geladen.`)
+  }
+
+  const removeShape = (id: string) => {
+    setShapes(current => current.filter(item => item.id !== id))
+    setDirty(true)
+  }
+
   const persist = async (nextStatus: GroundTruthStatus) => {
     if (!activeVideo || saving) return null
-    if (nextStatus === 'confirmed' && !hasPolygon && !fullFrameNotTraversable) {
-      setMessage('Setze mindestens drei Punkte oder wähle Vollbild-Nicht-befahrbar, bevor du bestätigst.')
+    const willHaveShapes = shapes.length > 0 || hasPolygon
+    if (nextStatus === 'confirmed' && !willHaveShapes && !fullFrameNotTraversable) {
+      setMessage('Markiere mindestens eine Fläche oder wähle Vollbild-Nicht-befahrbar, bevor du bestätigst.')
       return null
     }
     setSaving(true)
@@ -559,14 +725,18 @@ export default function GroundTruthLabeler({
           : 'Polygon wird gespeichert …',
     )
     try {
-      const polygons =
-        nextStatus === 'skipped' || (!hasPolygon && !fullFrameNotTraversable)
-          ? []
-          : [{id: 'path-1', class_id: 'traversable' as const, points: copyPoints(points)}]
+      // Die gerade bearbeitete Fläche zählt mit, auch ohne vorheriges
+      // "Fläche übernehmen" — sonst ginge sie beim Speichern still verloren.
+      const collected = nextStatus === 'skipped' ? [] : [...shapes, ...(hasPolygon ? [currentShape()] : [])]
+      const polygons = collected.filter(shape => describe(shape.class_id).layer !== 'roi')
+      const roi = collected.filter(shape => describe(shape.class_id).layer === 'roi')
       const saved = await saveGroundTruth(mission.id, activeVideo.video_id, frameIndex, {
         timestamp_ms: timestampMs,
         mask: fullFrameNotTraversable ? (fullFrameMask() ?? undefined) : undefined,
         polygons: fullFrameNotTraversable ? [] : polygons,
+        roi,
+        frame_width: activeVideo.width,
+        frame_height: activeVideo.height,
         status: nextStatus,
         annotator: annotator.trim() || 'Simon',
         notes,
@@ -845,7 +1015,7 @@ export default function GroundTruthLabeler({
                   ref={overlayRef}
                   viewBox="0 0 1 1"
                   preserveAspectRatio="none"
-                  className={`polygon-overlay tool-${tool} ${fullFrameNotTraversable ? 'full-frame-mode' : ''}`}
+                  className={`polygon-overlay tool-${tool} ${fullFrameNotTraversable ? 'full-frame-mode' : ''} ${trajectoryMode ? 'trajectory-mode' : ''}`}
                   onPointerDown={pointerDown}
                   onPointerMove={pointerMove}
                   onPointerUp={pointerUp}
@@ -853,9 +1023,48 @@ export default function GroundTruthLabeler({
                   onContextMenu={removeNearestPoint}
                   aria-label="Ground-Truth-Polygonfläche"
                 >
+                  {/* Bereits übernommene Flächen in ihrer Klassenfarbe. */}
+                  {shapes.map(shape => (
+                    <polygon
+                      key={shape.id}
+                      points={shape.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                      className={`committed-shape ${shape.certainty} ${shape.hard_negative ? 'hard-negative' : ''}`}
+                      style={{fill: describe(shape.class_id).color, fillOpacity: maskOpacity, stroke: describe(shape.class_id).color}}
+                      onClick={() => editShape(shape)}
+                    >
+                      <title>{`${describe(shape.class_id).label} — zum Bearbeiten anklicken`}</title>
+                    </polygon>
+                  ))}
                   {!fullFrameNotTraversable && points.length >= 3 && (
-                    <polygon points={polygonPoints} className="ground-truth-polygon" style={{fillOpacity: maskOpacity}} />
+                    <polygon
+                      points={polygonPoints}
+                      className="ground-truth-polygon"
+                      style={{fillOpacity: maskOpacity, fill: describe(shapeClass).color, stroke: describe(shapeClass).color}}
+                    />
                   )}
+                  {/* Von Hand gezeichnete Trajektorie. */}
+                  {trajectory.length > 1 && (
+                    <polyline
+                      points={trajectory.map(([x, y]) => `${x},${y}`).join(' ')}
+                      className="manual-trajectory"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  )}
+                  {trajectory.map(([x, y], index) => (
+                    <ellipse
+                      key={`trajectory-${index}`}
+                      cx={x}
+                      cy={y}
+                      rx={0.011 / zoom}
+                      ry={0.019 / zoom}
+                      className="manual-trajectory-point"
+                      onContextMenu={event => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setTrajectory(current => current.filter((_, position) => position !== index))
+                      }}
+                    />
+                  ))}
                   {!fullFrameNotTraversable && points.length > 1 && points.length < 3 && (
                     <polyline points={polygonPoints} className="ground-truth-polyline" />
                   )}
@@ -1147,6 +1356,115 @@ export default function GroundTruthLabeler({
               </div>
             )}
           </div>
+          <div className="label-class-panel">
+            <h2>Klasse der Fläche</h2>
+            {ontologyError && <small className="terrain-hint">{ontologyError} — es stehen nur die vier Kernklassen zur Wahl.</small>}
+            {(['core', 'obstacle', 'zone', 'roi'] as const).map(layer => {
+              const classes = classesOf(layer)
+              if (!classes.length) return null
+              const titles: Record<string, string> = {
+                core: 'Untergrund — genau eine je Fläche',
+                obstacle: 'Hindernis — erklärt, warum etwas nicht fahrbar ist',
+                zone: 'Problemzone — macht eine Fläche unsicher',
+                roi: 'Auswertungsbereich — schneidet nichts weg',
+              }
+              return (
+                <div key={layer} className="label-class-group">
+                  <small>{titles[layer]}</small>
+                  <div className="label-class-chips">
+                    {classes.map(item => (
+                      <button
+                        key={item.class_id}
+                        className={shapeClass === item.class_id ? 'active' : ''}
+                        style={{
+                          borderColor: item.color,
+                          color: shapeClass === item.class_id ? '#11150e' : item.color,
+                          background: shapeClass === item.class_id ? item.color : 'transparent',
+                        }}
+                        title={item.description}
+                        onClick={() => setShapeClass(item.class_id)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            <label>
+              Sicherheit
+              <select
+                aria-label="Sicherheit der Fläche"
+                value={shapeCertainty}
+                onChange={event => setShapeCertainty(event.target.value as LabelShape['certainty'])}
+              >
+                <option value="certain">Sicher</option>
+                <option value="uncertain">Unsicher</option>
+                <option value="partially_occluded">Teilweise verdeckt</option>
+              </select>
+            </label>
+            <label className="hard-negative-toggle">
+              <input type="checkbox" checked={shapeHardNegative} onChange={event => setShapeHardNegative(event.target.checked)} />
+              <span>Hartes Negativbeispiel</span>
+            </label>
+            <small>
+              Für Flächen, die aussehen wie das Gegenteil dessen, was sie sind — Schatten, der wie ein Hindernis wirkt, Lichtfleck, der wie
+              freie Fläche aussieht.
+            </small>
+            <label>
+              Notiz zur Fläche
+              <input value={shapeNote} maxLength={500} placeholder="Optional" onChange={event => setShapeNote(event.target.value)} />
+            </label>
+            <button className="commit-shape" disabled={!hasPolygon} onClick={commitShape}>
+              {editingShapeId ? 'Änderung übernehmen' : 'Fläche übernehmen'}
+            </button>
+            {shapes.length > 0 && (
+              <div className="committed-shape-list">
+                <b>{shapes.length} übernommene Fläche(n)</b>
+                {shapes.map(shape => (
+                  <div key={shape.id}>
+                    <i style={{background: describe(shape.class_id).color}} />
+                    <span>{describe(shape.class_id).label}</span>
+                    <small>
+                      {shape.certainty === 'certain' ? '' : shape.certainty === 'uncertain' ? 'unsicher · ' : 'verdeckt · '}
+                      {shape.hard_negative ? 'hartes Negativ · ' : ''}
+                      {shape.points.length} Punkte
+                    </small>
+                    <button onClick={() => editShape(shape)}>Bearbeiten</button>
+                    <button className="danger" onClick={() => removeShape(shape.id)}>
+                      Entfernen
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="manual-trajectory-panel">
+            <h2>Trajektorie von Hand</h2>
+            <label className="trajectory-toggle">
+              <input type="checkbox" checked={trajectoryMode} onChange={event => setTrajectoryMode(event.target.checked)} />
+              <span>Bahn zeichnen: Klick setzt einen Punkt, Rechtsklick entfernt ihn</span>
+            </label>
+            <small>Braucht kein trainiertes Modell. Im KI-Modellzentrum gibt es zusätzlich einen Vorschlag zum Nachbessern.</small>
+            <div className="trajectory-actions">
+              <button className="primary" disabled={trajectorySaving || trajectory.length < 2} onClick={() => void persistTrajectory()}>
+                {trajectorySaving ? 'WIRD GESPEICHERT …' : storedTrajectory ? 'Trajektorie aktualisieren' : 'Trajektorie speichern'}
+              </button>
+              <button disabled={trajectorySaving || (!trajectory.length && !storedTrajectory)} onClick={() => void discardTrajectory()}>
+                Trajektorie löschen
+              </button>
+            </div>
+            <div className="trajectory-state">
+              <b>{trajectory.length} Bahnpunkte</b>
+              <span>
+                {storedTrajectory
+                  ? `Gespeichert: Revision ${storedTrajectory.revision} · ${storedTrajectory.origin === 'manual' ? 'von Hand' : storedTrajectory.origin === 'manual_edit' ? 'nachgebessert' : 'Modellvorschlag'}`
+                  : 'Für diesen Frame ist nichts gespeichert.'}
+              </span>
+            </div>
+          </div>
+
           <div className="polygon-tool-grid">
             <button className={tool === 'add' ? 'active' : ''} onClick={() => setTool('add')}>
               ＋ Punkt hinzufügen

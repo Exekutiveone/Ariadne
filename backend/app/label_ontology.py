@@ -35,11 +35,11 @@ CORE_CLASSES = {
         "value": 1,
         "label": "Befahrbarer Boden",
         "color": "#55d96f",
-        "description": "Fester Untergrund, auf dem das Fahrzeug ohne Einschraenkung fahren kann.",
+        "description": "Fester Untergrund, auf dem das Fahrzeug ohne Einschränkung fahren kann.",
     },
     "restricted": {
         "value": 4,
-        "label": "Eingeschraenkt befahrbar",
+        "label": "Eingeschränkt befahrbar",
         "color": "#e4c264",
         "description": "Befahrbar, aber mit Risiko oder nur langsam — etwa Matsch, loser Schotter, hohes Gras.",
     },
@@ -47,13 +47,13 @@ CORE_CLASSES = {
         "value": 2,
         "label": "Nicht befahrbar",
         "color": "#e05b52",
-        "description": "Sicher nicht befahrbar, unabhaengig von der Ursache.",
+        "description": "Sicher nicht befahrbar, unabhängig von der Ursache.",
     },
     "unknown": {
         "value": 3,
         "label": "Nicht bewertbar / verdeckt",
         "color": "#737c78",
-        "description": "Keine Aussage moeglich: verdeckt, ueberbelichtet, zu unscharf.",
+        "description": "Keine Aussage möglich: verdeckt, überbelichtet, zu unscharf.",
     },
 }
 
@@ -63,11 +63,11 @@ CORE_CLASSES = {
 # markiert, und das Modell kann spaeter lernen, woran es lag.
 OBSTACLE_CLASSES = {
     "tree": {"label": "Baum", "color": "#2f7d4f"},
-    "shrub": {"label": "Busch / dichtes Gebuesch", "color": "#4f9c5f"},
-    "log": {"label": "Grosser Ast / Baumstamm", "color": "#8a6a3d"},
+    "shrub": {"label": "Busch / dichtes Gebüsch", "color": "#4f9c5f"},
+    "log": {"label": "Großer Ast / Baumstamm", "color": "#8a6a3d"},
     "rock": {"label": "Stein", "color": "#8f9499"},
     "ditch": {"label": "Graben", "color": "#5b4a7a"},
-    "water": {"label": "Wasser / Pfuetze", "color": "#3f7fbf"},
+    "water": {"label": "Wasser / Pfütze", "color": "#3f7fbf"},
     "barrier": {"label": "Zaun / Pfosten / harte Barriere", "color": "#c94f8a"},
 }
 
@@ -107,7 +107,7 @@ ORIGIN_LEVELS = {
     "manual": {"label": "Von Hand gesetzt"},
     "model_proposal": {"label": "Automatisch vorgeschlagen"},
     "manual_corrected": {"label": "Vorschlag von Hand korrigiert"},
-    "human_confirmed": {"label": "Vom Menschen bestaetigt"},
+    "human_confirmed": {"label": "Vom Menschen bestätigt"},
 }
 
 LAYERS = {

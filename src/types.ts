@@ -121,7 +121,15 @@ export type NormalizedPoint = [number, number]
 export type TerrainMask = {width: number; height: number; rle: number[]}
 export type GroundTruthValue = 0 | 1 | 2 | 3
 export type GroundTruthStatus = 'draft' | 'confirmed' | 'skipped'
-export type GroundTruthPolygon = {id: string; class_id: 'traversable'; points: NormalizedPoint[]}
+export type GroundTruthPolygon = {
+  id: string
+  class_id: string
+  points: NormalizedPoint[]
+  certainty?: 'certain' | 'uncertain' | 'partially_occluded'
+  origin?: 'manual' | 'model_proposal' | 'manual_corrected' | 'human_confirmed'
+  hard_negative?: boolean
+  note?: string
+}
 export type GroundTruthAnnotation = {
   schema_version: string
   mission_id: string
@@ -131,6 +139,9 @@ export type GroundTruthAnnotation = {
   source_frame_hash: string
   mask?: TerrainMask
   polygons: GroundTruthPolygon[]
+  /** Auswertungsbereich — eigene Ebene, schneidet das Bild nicht zu. */
+  roi?: GroundTruthPolygon[]
+  frame_size?: {width: number; height: number} | null
   status: GroundTruthStatus
   annotator: string
   notes: string
@@ -320,6 +331,18 @@ export type GlobalModelDashboardData = {
   }
   model: GlobalPathModelResult | null
 }
+/* Labelklassen: vom Backend geliefert, damit Liste und Farben nicht doppelt gepflegt werden. */
+export type LabelClass = {class_id: string; layer: string; label: string; color: string; value: number | null; description: string}
+export type LabelLayer = {layer: string; label: string; exclusive: boolean; classes: LabelClass[]}
+export type LabelOntology = {
+  schema_version: string
+  unlabelled: {key: string; value: number; label: string; color: string}
+  layers: LabelLayer[]
+  certainty: {value: string; label: string}[]
+  origin: {value: string; label: string}[]
+  notes: string[]
+}
+
 /* Run-Registry: ein Run ist genau ein Originalvideo. */
 export type RunStatus = 'unlabeled' | 'queued_for_labeling' | 'labeled' | 'training_ready'
 export type RegistryRun = {

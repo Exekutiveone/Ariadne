@@ -79,6 +79,53 @@ const prediction = {
 }
 
 vi.mock('./api', () => ({
+  getLabelOntology: async () => ({
+    schema_version: '3.0',
+    unlabelled: {key: 'unlabelled', value: 0, label: 'Nicht markiert', color: '#00000000'},
+    layers: [
+      {
+        layer: 'core',
+        label: 'Kernklasse',
+        exclusive: true,
+        classes: [
+          {class_id: 'traversable', layer: 'core', label: 'Befahrbarer Boden', color: '#55d96f', value: 1, description: ''},
+          {class_id: 'restricted', layer: 'core', label: 'Eingeschränkt befahrbar', color: '#e4c264', value: 4, description: ''},
+          {class_id: 'not_traversable', layer: 'core', label: 'Nicht befahrbar', color: '#e05b52', value: 2, description: ''},
+          {class_id: 'unknown', layer: 'core', label: 'Nicht bewertbar / verdeckt', color: '#737c78', value: 3, description: ''},
+        ],
+      },
+      {
+        layer: 'obstacle',
+        label: 'Hindernis',
+        exclusive: false,
+        classes: [{class_id: 'tree', layer: 'obstacle', label: 'Baum', color: '#2f7d4f', value: null, description: ''}],
+      },
+      {
+        layer: 'zone',
+        label: 'Problemzone',
+        exclusive: false,
+        classes: [{class_id: 'mud', layer: 'zone', label: 'Matsch', color: '#7a5c3d', value: null, description: ''}],
+      },
+      {
+        layer: 'roi',
+        label: 'Auswertungsbereich',
+        exclusive: false,
+        classes: [
+          {class_id: 'roi_ignore', layer: 'roi', label: 'Nicht interessiert / ignorieren', color: '#3a4149', value: null, description: ''},
+        ],
+      },
+    ],
+    certainty: [
+      {value: 'certain', label: 'Sicher'},
+      {value: 'uncertain', label: 'Unsicher'},
+      {value: 'partially_occluded', label: 'Teilweise verdeckt'},
+    ],
+    origin: [{value: 'manual', label: 'Von Hand gesetzt'}],
+    notes: [],
+  }),
+  getTrajectory: async () => null,
+  saveTrajectory: vi.fn(),
+  deleteTrajectory: vi.fn(),
   getLabelingVideos: async () => ({
     mission_id: 'mission-1',
     source: 'original_video_metadata_only',

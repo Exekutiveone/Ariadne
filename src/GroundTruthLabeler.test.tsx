@@ -6,6 +6,53 @@ const updateVideoTerrainCategory = vi.hoisted(() =>
 )
 
 vi.mock('./api', () => ({
+  getLabelOntology: async () => ({
+    schema_version: '3.0',
+    unlabelled: {key: 'unlabelled', value: 0, label: 'Nicht markiert', color: '#00000000'},
+    layers: [
+      {
+        layer: 'core',
+        label: 'Kernklasse',
+        exclusive: true,
+        classes: [
+          {class_id: 'traversable', layer: 'core', label: 'Befahrbarer Boden', color: '#55d96f', value: 1, description: ''},
+          {class_id: 'restricted', layer: 'core', label: 'Eingeschränkt befahrbar', color: '#e4c264', value: 4, description: ''},
+          {class_id: 'not_traversable', layer: 'core', label: 'Nicht befahrbar', color: '#e05b52', value: 2, description: ''},
+          {class_id: 'unknown', layer: 'core', label: 'Nicht bewertbar / verdeckt', color: '#737c78', value: 3, description: ''},
+        ],
+      },
+      {
+        layer: 'obstacle',
+        label: 'Hindernis',
+        exclusive: false,
+        classes: [{class_id: 'tree', layer: 'obstacle', label: 'Baum', color: '#2f7d4f', value: null, description: ''}],
+      },
+      {
+        layer: 'zone',
+        label: 'Problemzone',
+        exclusive: false,
+        classes: [{class_id: 'mud', layer: 'zone', label: 'Matsch', color: '#7a5c3d', value: null, description: ''}],
+      },
+      {
+        layer: 'roi',
+        label: 'Auswertungsbereich',
+        exclusive: false,
+        classes: [
+          {class_id: 'roi_ignore', layer: 'roi', label: 'Nicht interessiert / ignorieren', color: '#3a4149', value: null, description: ''},
+        ],
+      },
+    ],
+    certainty: [
+      {value: 'certain', label: 'Sicher'},
+      {value: 'uncertain', label: 'Unsicher'},
+      {value: 'partially_occluded', label: 'Teilweise verdeckt'},
+    ],
+    origin: [{value: 'manual', label: 'Von Hand gesetzt'}],
+    notes: [],
+  }),
+  getTrajectory: async () => null,
+  saveTrajectory: vi.fn(),
+  deleteTrajectory: vi.fn(),
   getLabelingVideos: async () => ({
     mission_id: 'mission-1',
     source: 'original_video_metadata_only',
@@ -148,4 +195,55 @@ test('allows editing the terrain category of an existing video from the inventor
   await waitFor(() => expect(updateVideoTerrainCategory).toHaveBeenCalledWith('mission-1', 'video-1', {terrain_category: 'walduntergrund'}))
   await waitFor(() => expect(onMissionUpdated).toHaveBeenCalled())
   expect(screen.getByText(/Terrainkategorie für Waldweg\.mp4 gespeichert/i)).toBeInTheDocument()
+})
+
+test('offers every ontology layer and keeps obstacles apart from the core classes', async () => {
+  render(
+    <GroundTruthLabeler
+      mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any}
+      onClose={() => undefined}
+      onProcessingComplete={() => undefined}
+    />,
+  )
+  await screen.findByRole('button', {name: 'Befahrbarer Boden'})
+
+  // Vier Ebenen, jede mit eigener Ueberschrift — Hindernisse ersetzen keine
+  // Kernklasse, sie erklaeren sie.
+  expect(screen.getByText(/Untergrund — genau eine je Fläche/)).toBeInTheDocument()
+  expect(screen.getByText(/Hindernis — erklärt, warum etwas nicht fahrbar ist/)).toBeInTheDocument()
+  expect(screen.getByText(/Problemzone — macht eine Fläche unsicher/)).toBeInTheDocument()
+  expect(screen.getByText(/Auswertungsbereich — schneidet nichts weg/)).toBeInTheDocument()
+  expect(screen.getByRole('button', {name: 'Baum'})).toBeInTheDocument()
+  expect(screen.getByRole('button', {name: 'Nicht interessiert / ignorieren'})).toBeInTheDocument()
+})
+
+test('a shape cannot be committed before it is a polygon', async () => {
+  render(
+    <GroundTruthLabeler
+      mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any}
+      onClose={() => undefined}
+      onProcessingComplete={() => undefined}
+    />,
+  )
+  await screen.findByRole('button', {name: 'Befahrbarer Boden'})
+
+  expect(screen.getByRole('button', {name: 'Fläche übernehmen'})).toBeDisabled()
+})
+
+test('drawing a trajectory by hand needs no model and no proposal', async () => {
+  render(
+    <GroundTruthLabeler
+      mission={{id: 'mission-1', name: 'Mission 1', videos: []} as any}
+      onClose={() => undefined}
+      onProcessingComplete={() => undefined}
+    />,
+  )
+  await screen.findByRole('button', {name: 'Befahrbarer Boden'})
+
+  expect(screen.getByText('Trajektorie von Hand')).toBeInTheDocument()
+  expect(screen.getByText(/Braucht kein trainiertes Modell/)).toBeInTheDocument()
+  // Ohne Punkte ist Speichern gesperrt: eine Bahn braucht mindestens zwei.
+  expect(screen.getByRole('button', {name: 'Trajektorie speichern'})).toBeDisabled()
+  expect(screen.getByText('0 Bahnpunkte')).toBeInTheDocument()
+  expect(screen.getByText('Für diesen Frame ist nichts gespeichert.')).toBeInTheDocument()
 })

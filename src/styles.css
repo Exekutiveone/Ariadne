@@ -3554,3 +3554,137 @@ footer {
   font-size: 9px;
   line-height: 1.45;
 }
+
+/* Mehrklassen-Labeling und Trajektorie von Hand */
+.label-class-panel {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #303a33;
+}
+.label-class-group {
+  margin-bottom: 10px;
+}
+.label-class-group > small {
+  display: block;
+  margin-bottom: 5px;
+  color: #78847b;
+  font-size: 9px;
+}
+.label-class-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.label-class-chips button {
+  padding: 6px 8px;
+  border: 1px solid;
+  background: transparent;
+  font: 700 9px 'Space Mono';
+  cursor: pointer;
+  border-radius: 2px;
+}
+.hard-negative-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: #aeb8b1;
+}
+.hard-negative-toggle input {
+  width: auto;
+  margin: 0;
+  accent-color: #e4c264;
+}
+.commit-shape {
+  width: 100%;
+  padding: 11px;
+  margin-top: 8px;
+  border: 0;
+  background: #67e6f1;
+  color: #0a1416;
+  font: 700 10px 'Space Mono';
+}
+.commit-shape:disabled {
+  background: #303833;
+  color: #717a73;
+}
+.committed-shape-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+}
+.committed-shape-list > b {
+  color: #d7f26b;
+  font: 700 10px 'Space Mono';
+}
+.committed-shape-list > div {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 1px solid #303a33;
+  background: #111713;
+}
+.committed-shape-list i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.committed-shape-list span {
+  font-size: 10px;
+  color: #dfe6e0;
+}
+.committed-shape-list small {
+  grid-column: 2;
+  grid-row: 2;
+  color: #78847b;
+  font-size: 9px;
+}
+.committed-shape-list button {
+  padding: 5px 7px;
+  border: 1px solid #3d4841;
+  background: #141a16;
+  color: #aeb8b1;
+  font: 700 8px 'Space Mono';
+}
+.committed-shape-list button.danger {
+  color: #dca88f;
+  border-color: #4a3733;
+}
+.committed-shape {
+  cursor: pointer;
+  stroke-width: 0.003;
+  vector-effect: non-scaling-stroke;
+}
+.committed-shape.uncertain {
+  stroke-dasharray: 0.02 0.012;
+}
+.committed-shape.hard-negative {
+  stroke-width: 0.008;
+}
+.polygon-overlay.trajectory-mode {
+  cursor: crosshair;
+}
+.manual-trajectory {
+  fill: none;
+  stroke: #d7f26b;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.manual-trajectory-point {
+  fill: #d7f26b;
+  stroke: #11150e;
+  stroke-width: 0.002;
+  cursor: grab;
+}
+.manual-trajectory-panel {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #303a33;
+}
+.manual-trajectory-panel h2 {
+  margin-bottom: 8px;
+}

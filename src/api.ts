@@ -10,6 +10,7 @@ import type {
   GroundTruthStatus,
   GroundTruthSummary,
   LabelingVideoManifest,
+  LabelOntology,
   Mission,
   PathModelResult,
   PathPrediction,
@@ -119,6 +120,11 @@ export async function saveTrajectory(
 export async function deleteTrajectory(missionId: string, videoId: string, frameIndex: number): Promise<void> {
   const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`, {method: 'DELETE'})
   if (!r.ok && r.status !== 404) throw new Error('Trajektorie konnte nicht gelöscht werden')
+}
+export async function getLabelOntology(): Promise<LabelOntology> {
+  const r = await fetch('/api/v1/label-ontology')
+  if (!r.ok) throw new Error('Labelklassen konnten nicht geladen werden')
+  return r.json()
 }
 export async function getRegistryRuns(): Promise<RegistryListing> {
   const r = await fetch('/api/v1/registry/runs')
@@ -241,6 +247,9 @@ export async function saveGroundTruth(
     source_frame_hash?: string
     mask?: TerrainMask
     polygons?: GroundTruthPolygon[]
+    roi?: GroundTruthPolygon[]
+    frame_width?: number
+    frame_height?: number
     status: GroundTruthStatus
     annotator: string
     notes: string
