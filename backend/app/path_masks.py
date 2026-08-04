@@ -12,10 +12,23 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# Nur diese Klassen sind fuer das binaere Wegmodell ein Weg. Alles andere —
+# Hindernisse, Problemzonen, ROI — beschreibt den Frame, ist aber kein
+# befahrbarer Boden. Ohne diese Filterung wuerde seit der Mehrklassen-Ontologie
+# jedes Baum- oder Schattenpolygon als Trainingsbeispiel fuer "Weg" einfliessen.
+PATH_POSITIVE_CLASSES = frozenset({"traversable"})
 
-def polygon_mask(record, width: int, height: int):
+
+def polygon_mask(record, width: int, height: int, positive_classes=PATH_POSITIVE_CLASSES):
+    """Binaere Wegmaske aus den Polygonen eines Ground-Truth-Frames.
+
+    Polygone ohne `class_id` stammen aus der Zeit vor der Mehrklassen-Ontologie
+    und sind per Definition befahrbar — so waren sie damals gemeint.
+    """
     mask = np.zeros((height, width), np.uint8)
     for polygon in record.get("polygons", []):
+        if polygon.get("class_id", "traversable") not in positive_classes:
+            continue
         points = np.asarray(
             [[round(float(x) * (width - 1)), round(float(y) * (height - 1))] for x, y in polygon.get("points", [])],
             np.int32,

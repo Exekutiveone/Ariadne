@@ -151,7 +151,13 @@ def test_original_video_frames_accept_editable_polygons_and_skips(tmp_path, monk
     )
 
     assert saved.status_code == 200
-    assert saved.json()["schema_version"] == "2.0"
+    assert saved.json()["schema_version"] == "3.0"
+    # Ohne Angabe bleibt ein Polygon, was es vor der Mehrklassen-Ontologie war:
+    # eine befahrbare, von Hand gesetzte, sichere Fläche.
+    assert saved.json()["polygons"][0]["class_id"] == "traversable"
+    assert saved.json()["polygons"][0]["certainty"] == "certain"
+    assert saved.json()["polygons"][0]["origin"] == "manual"
+    assert saved.json()["polygons"][0]["hard_negative"] is False
     assert saved.json()["polygons"][0]["points"] == polygon["points"]
     assert len(saved.json()["source_frame_hash"]) == 64
     assert saved.json()["statistics"]["polygon_count"] == 1

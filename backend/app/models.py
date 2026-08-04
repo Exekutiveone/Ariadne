@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from .label_ontology import ALL_CLASSES, MASK_VALUES, layer_of
+
 
 class Coordinate(BaseModel):
     lat: float = Field(ge=-90, le=90)
@@ -84,8 +86,8 @@ class GroundTruthMask(BaseModel):
         total = 0
         for index in range(0, len(self.rle), 2):
             value, length = self.rle[index], self.rle[index + 1]
-            if value not in {0, 1, 2, 3}:
-                raise ValueError("Ground-Truth-Wert muss 0, 1, 2 oder 3 sein")
+            if value not in MASK_VALUES:
+                raise ValueError(f"Ground-Truth-Wert muss einer von {sorted(MASK_VALUES)} sein")
             if length <= 0:
                 raise ValueError("RLE-Längen müssen positiv sein")
             total += length
@@ -95,12 +97,29 @@ class GroundTruthMask(BaseModel):
 
 
 class GroundTruthPolygon(BaseModel):
+    """Eine markierte Fläche mit genau einer Klasse aus `label_ontology`.
+
+    Alle Felder ausser `points` haben Vorgaben, die exakt den Zustand vor dem
+    04.08.2026 beschreiben: eine befahrbare, von Hand gesetzte, sichere Fläche.
+    Die 276 gespeicherten Ground-Truth-Dateien bleiben damit ohne Migration
+    gültig und bedeuten weiterhin dasselbe.
+    """
+
     id: str = Field(default="path-1", min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
-    class_id: Literal["traversable"] = "traversable"
+    class_id: str = "traversable"
     points: list[tuple[float, float]] = Field(min_length=3, max_length=500)
+    certainty: Literal["certain", "uncertain", "partially_occluded"] = "certain"
+    origin: Literal["manual", "model_proposal", "manual_corrected", "human_confirmed"] = "manual"
+    # Flächen, die aussehen wie das Gegenteil dessen, was sie sind: Schatten,
+    # der wie ein Hindernis wirkt, Lichtfleck, der wie freie Fläche aussieht.
+    # Genau die verbessern ein Modell am stärksten, deshalb sind sie auffindbar.
+    hard_negative: bool = False
+    note: str = Field(default="", max_length=500)
 
     @model_validator(mode="after")
     def normalized_and_distinct(self):
+        if self.class_id not in ALL_CLASSES:
+            raise ValueError(f"Unbekannte Labelklasse: {self.class_id}")
         if any(not (0 <= x <= 1 and 0 <= y <= 1) for x, y in self.points):
             raise ValueError("Polygonpunkte müssen auf das Videobild normiert sein")
         if len({(round(x, 8), round(y, 8)) for x, y in self.points}) < 3:
@@ -109,13 +128,38 @@ class GroundTruthPolygon(BaseModel):
 
 
 class GroundTruthAnnotationInput(BaseModel):
+    """Alle Labels eines Frames.
+
+    `polygons` traegt Kernklassen, Hindernisse und Problemzonen; `roi` haelt den
+    Auswertungsbereich getrennt davon. Die Trennung ist Absicht: der ROI
+    schneidet nichts weg, er sagt dem Training nur, welche Pixel zaehlen. Das
+    Originalbild bleibt unangetastet und die Regel spaeter aenderbar.
+    """
+
     timestamp_ms: int = Field(ge=0)
     source_frame_hash: str | None = Field(default=None, min_length=12, max_length=128, pattern=r"^[a-fA-F0-9]+$")
     mask: GroundTruthMask | None = None
-    polygons: list[GroundTruthPolygon] = Field(default_factory=list, max_length=20)
+    polygons: list[GroundTruthPolygon] = Field(default_factory=list, max_length=120)
+    roi: list[GroundTruthPolygon] = Field(default_factory=list, max_length=20)
     status: Literal["draft", "confirmed", "skipped"] = "draft"
     annotator: str = Field(default="human", min_length=1, max_length=80)
     notes: str = Field(default="", max_length=1000)
+    # Aufloesung des Originalframes. Die Punkte sind normiert, aber ohne die
+    # Quellgroesse laesst sich spaeter nicht mehr sagen, wie fein ein Label war.
+    frame_width: int | None = Field(default=None, ge=1, le=16384)
+    frame_height: int | None = Field(default=None, ge=1, le=16384)
+
+    @model_validator(mode="after")
+    def roi_holds_only_roi_classes(self):
+        wrong = [item.class_id for item in self.roi if layer_of(item.class_id) != "roi"]
+        if wrong:
+            raise ValueError(
+                f"Im Auswertungsbereich sind nur ROI-Klassen erlaubt, nicht: {', '.join(sorted(set(wrong)))}"
+            )
+        misplaced = [item.class_id for item in self.polygons if layer_of(item.class_id) == "roi"]
+        if misplaced:
+            raise ValueError("ROI-Klassen gehören in das Feld 'roi', nicht zu den Polygonen")
+        return self
 
 
 class PathRefinementInput(BaseModel):

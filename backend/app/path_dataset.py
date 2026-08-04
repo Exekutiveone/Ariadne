@@ -14,7 +14,7 @@ import cv2
 
 from .models import MissionRecord
 from .path_features import MODEL_WIDTH
-from .path_masks import apply_refinements, polygon_mask
+from .path_masks import PATH_POSITIVE_CLASSES, apply_refinements, polygon_mask
 from .processor import video_path
 
 # Eigener Lock je Modul: der Modell-Cache in path_model hat seinen eigenen.
@@ -28,7 +28,14 @@ def confirmed_annotations(mission_dir: Path):
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if record.get("status") == "confirmed" and record.get("polygons"):
+        if record.get("status") != "confirmed":
+            continue
+        # Ein Frame, auf dem nur Hindernisse oder Problemzonen markiert sind,
+        # taugt nicht als Trainingsbeispiel fuer das binaere Wegmodell — er
+        # enthaelt keine einzige Wegflaeche.
+        if any(
+            polygon.get("class_id", "traversable") in PATH_POSITIVE_CLASSES for polygon in record.get("polygons", [])
+        ):
             records.append(record)
     return sorted(records, key=lambda item: (item["video_id"], item["frame_index"]))
 

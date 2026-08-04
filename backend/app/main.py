@@ -23,6 +23,7 @@ from .global_video_analysis import (
     global_video_analysis_status,
     start_global_video_analysis,
 )
+from .label_ontology import ontology_document
 from .labeling import list_labeling_videos
 from .models import (
     CriticalFlagInput,
@@ -152,6 +153,16 @@ def global_video_analyze_result(mission_id: str, video_id: str):
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/v1/label-ontology")
+def label_ontology():
+    """Klassen, Ebenen und Metadatenwerte fuer die Oberflaeche.
+
+    Die Oberflaeche baut ihre Auswahl daraus, damit Klassenliste und Farben
+    nicht an zwei Stellen gepflegt werden muessen.
+    """
+    return ontology_document()
 
 
 @app.get("/api/v1/registry/runs")

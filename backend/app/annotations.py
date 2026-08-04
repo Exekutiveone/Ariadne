@@ -3,16 +3,24 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .label_ontology import CORE_CLASSES, UNLABELLED, layer_of, ontology_document
 from .labeling import frame_reference, probe_labeling_video
 from .models import GroundTruthAnnotationInput, MissionRecord
 from .segmentation import current_segmentation_dir
 
-ANNOTATION_SCHEMA_VERSION = "2.0"
+# 3.0 ist rein additiv gegenueber 2.0: Klassen, Ebenen, ROI und Metadaten kamen
+# dazu, nichts wurde umgedeutet. Gespeicherte 2.0-Dateien bleiben lesbar und
+# bedeuten unveraendert dasselbe.
+ANNOTATION_SCHEMA_VERSION = "3.0"
+# Rastermaske: nur Kernklassen, Werte 0..4. Die Tabelle wird aus der einen
+# Ontologie abgeleitet, damit eine neue Klasse nicht an zwei Stellen gepflegt
+# werden muss — genau daran waere hier sonst ein KeyError entstanden.
 GROUND_TRUTH_ONTOLOGY = {
-    "unlabelled": {"value": 0, "label": "Nicht markiert / im Training ignorieren", "color": "#00000000"},
-    "traversable": {"value": 1, "label": "Befahrbar", "color": "#55d96f"},
-    "not_traversable": {"value": 2, "label": "Nicht befahrbar", "color": "#e05b52"},
-    "unknown": {"value": 3, "label": "Nicht bewertbar", "color": "#737c78"},
+    UNLABELLED["key"]: {key: UNLABELLED[key] for key in ("value", "label", "color")},
+    **{
+        name: {"value": item["value"], "label": item["label"], "color": item["color"]}
+        for name, item in CORE_CLASSES.items()
+    },
 }
 
 
@@ -54,10 +62,10 @@ def frame_provenance(mission_dir: Path, video_id: str, frame_index: int):
 
 
 def _mask_statistics(payload: GroundTruthAnnotationInput):
-    counts = {"unlabelled": 0, "traversable": 0, "not_traversable": 0, "unknown": 0}
-    by_value = {item["value"]: key for key, item in GROUND_TRUTH_ONTOLOGY.items()}
     if payload.mask is None:
         return None
+    counts = dict.fromkeys(GROUND_TRUTH_ONTOLOGY, 0)
+    by_value = {item["value"]: key for key, item in GROUND_TRUTH_ONTOLOGY.items()}
     for index in range(0, len(payload.mask.rle), 2):
         counts[by_value[payload.mask.rle[index]]] += payload.mask.rle[index + 1]
     total = payload.mask.width * payload.mask.height
@@ -70,10 +78,33 @@ def _mask_statistics(payload: GroundTruthAnnotationInput):
 
 
 def _polygon_statistics(payload: GroundTruthAnnotationInput):
+    """Was wurde tatsaechlich markiert — nach Ebene, Klasse und Sicherheit.
+
+    `classes` bleibt aus Ruecksicht auf gespeicherte Zusammenfassungen eine
+    flache Zaehlung je Klasse; die Aufschluesselung nach Ebenen kommt daneben.
+    """
+    by_class: dict[str, int] = {}
+    by_layer: dict[str, int] = {}
+    by_certainty: dict[str, int] = {}
+    by_origin: dict[str, int] = {}
+    for polygon in payload.polygons:
+        by_class[polygon.class_id] = by_class.get(polygon.class_id, 0) + 1
+        layer = layer_of(polygon.class_id)
+        by_layer[layer] = by_layer.get(layer, 0) + 1
+        by_certainty[polygon.certainty] = by_certainty.get(polygon.certainty, 0) + 1
+        by_origin[polygon.origin] = by_origin.get(polygon.origin, 0) + 1
     return {
         "polygon_count": len(payload.polygons),
         "point_count": sum(len(polygon.points) for polygon in payload.polygons),
-        "classes": {"traversable": len(payload.polygons)},
+        "classes": by_class,
+        "layers": by_layer,
+        "certainty": by_certainty,
+        "origin": by_origin,
+        "hard_negatives": sum(1 for polygon in payload.polygons if polygon.hard_negative),
+        "roi_count": len(payload.roi),
+        "roi_classes": {
+            item.class_id: sum(1 for x in payload.roi if x.class_id == item.class_id) for item in payload.roi
+        },
     }
 
 
@@ -149,13 +180,19 @@ def save_annotation(
         "timestamp_ms": payload.timestamp_ms,
         "source_frame_hash": source_frame_hash,
         "polygons": [polygon.model_dump() for polygon in payload.polygons],
+        "roi": [polygon.model_dump() for polygon in payload.roi],
+        "frame_size": (
+            {"width": payload.frame_width, "height": payload.frame_height}
+            if payload.frame_width and payload.frame_height
+            else None
+        ),
         "status": payload.status,
         "annotator": payload.annotator,
         "notes": payload.notes,
         "revision": revision,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "statistics": statistics,
-        "ontology": GROUND_TRUTH_ONTOLOGY,
+        "ontology": ontology_document(),
     }
     if payload.mask is not None:
         record["mask"] = payload.mask.model_dump()
@@ -216,7 +253,7 @@ def list_annotations(
     return {
         "schema_version": ANNOTATION_SCHEMA_VERSION,
         "mission_id": mission.id,
-        "ontology": GROUND_TRUTH_ONTOLOGY,
+        "ontology": ontology_document(),
         "counts": {
             "total": len(items),
             "draft": sum(item["status"] == "draft" for item in items),
