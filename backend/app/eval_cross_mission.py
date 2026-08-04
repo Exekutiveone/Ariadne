@@ -15,8 +15,8 @@ Zwei Punkte entscheiden über die Ehrlichkeit der Zahlen:
    sind visuell hochkorreliert, deshalb ist diese Zahl systematisch optimistisch
    und taugt nicht als Aussage über neue Waldstücke.
 
-`_choose_threshold` aus path_model.py kann hier nicht wiederverwendet werden,
-weil es intern `_features` mit fester Merkmalszahl aufruft und damit die
+`choose_threshold` aus path_model.py kann hier nicht wiederverwendet werden,
+weil es intern `pixel_features` mit fester Merkmalszahl aufruft und damit die
 Merkmalsvariante (mit/ohne Positionsmerkmale) ignorieren würde. Die
 Schwellenwahl ist unten deshalb erneut formuliert — bewusst mit denselben
 Kandidatenquantilen und demselben symmetrischen Kriterium.
@@ -29,35 +29,32 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .path_model import (
+from .path_dataset import confirmed_annotations, frame_split, read_frames
+from .path_features import (
     MODEL_WIDTH,
     RANDOM_FEATURES,
     RANDOM_SEED,
     RIDGE_LAMBDA,
     SAMPLES_PER_CLASS_PER_FRAME,
-    _clean_prediction,
-    _confirmed_annotations,
-    _features,
-    _fit_kernel_classifier,
-    _frame_split,
-    _predict_scores,
-    _read_frames,
-    confusion_counts,
-    symmetric_metrics,
+    clean_prediction,
+    fit_kernel_classifier,
+    pixel_features,
+    predict_scores,
 )
+from .path_masks import confusion_counts, symmetric_metrics
 
-# Die letzten acht Spalten von _features sind ortsabhängig: x, y, x², y²,
+# Die letzten acht Spalten von pixel_features sind ortsabhängig: x, y, x², y²,
 # |x-0.5| sowie die drei Produkte green*y, saturation*y, value*y. Ein Modell
 # kann darüber lernen "unten im Bild ist Weg", was innerhalb einer Mission
 # funktioniert und auf fremdem Gelände zusammenbrechen kann. test_eval_cross_mission
-# pinnt diese Annahme gegen Änderungen an _features.
+# pinnt diese Annahme gegen Änderungen an pixel_features.
 POSITION_FEATURE_COUNT = 8
 THRESHOLD_QUANTILES = np.linspace(0.12, 0.88, 33)
 
 
 def _features_for(image: np.ndarray, include_position: bool):
     """Merkmale eines Frames, wahlweise ohne die ortsabhängigen Spalten."""
-    features = _features(image)
+    features = pixel_features(image)
     return features if include_position else features[:, :-POSITION_FEATURE_COUNT]
 
 
@@ -86,7 +83,7 @@ def _sample_training_pixels(frames, include_position: bool, seed: int = RANDOM_S
 
 
 def _score_frames(frames, model, include_position: bool):
-    return [_predict_scores(_features_for(item["image"], include_position), model) for item in frames]
+    return [predict_scores(_features_for(item["image"], include_position), model) for item in frames]
 
 
 def _choose_threshold_on(frames, scores):
@@ -98,7 +95,7 @@ def _choose_threshold_on(frames, scores):
         total = {"tp": 0, "tn": 0, "fp": 0, "fn": 0}
         for item, frame_scores in zip(frames, scores, strict=True):
             counts = confusion_counts(
-                item["mask"], _clean_prediction(frame_scores, item["mask"].shape, float(threshold))
+                item["mask"], clean_prediction(frame_scores, item["mask"].shape, float(threshold))
             )
             for key in total:
                 total[key] += counts[key]
@@ -114,8 +111,8 @@ def _evaluate_frames(frames, model, threshold: float, include_position: bool):
     total = {"tp": 0, "tn": 0, "fp": 0, "fn": 0}
     per_frame = []
     for item in frames:
-        scores = _predict_scores(_features_for(item["image"], include_position), model)
-        prediction = _clean_prediction(scores, item["mask"].shape, threshold)
+        scores = predict_scores(_features_for(item["image"], include_position), model)
+        prediction = clean_prediction(scores, item["mask"].shape, threshold)
         counts = confusion_counts(item["mask"], prediction)
         for key in total:
             total[key] += counts[key]
@@ -137,7 +134,7 @@ def pick_evidence_frames(per_frame, worst: int = 3, best: int = 2):
     return chosen
 
 
-def _write_evidence(directory: Path, run_key: str, per_frame):
+def write_evidence(directory: Path, run_key: str, per_frame):
     directory.mkdir(parents=True, exist_ok=True)
     written = []
     for rank, (kind, entry) in enumerate(pick_evidence_frames(per_frame)):
@@ -168,7 +165,7 @@ def _write_evidence(directory: Path, run_key: str, per_frame):
 
 def run_single(train_frames, eval_frames, include_position: bool):
     """Ein Evaluationslauf: fitten, Schwelle auf Trainingsmission, dann messen."""
-    fit_frames, threshold_frames = _frame_split([item["record"] for item in train_frames])
+    fit_frames, threshold_frames = frame_split([item["record"] for item in train_frames])
     by_key = {(item["record"]["video_id"], item["record"]["frame_index"]): item for item in train_frames}
     fit_items = [
         by_key[(r["video_id"], r["frame_index"])] for r in fit_frames if (r["video_id"], r["frame_index"]) in by_key
@@ -182,7 +179,7 @@ def run_single(train_frames, eval_frames, include_position: bool):
         raise ValueError("Trainingsmission liefert zu wenige Frames für einen internen Split")
 
     samples, labels = _sample_training_pixels(fit_items, include_position)
-    model = _fit_kernel_classifier(samples, labels, RANDOM_FEATURES, RIDGE_LAMBDA, RANDOM_SEED)
+    model = fit_kernel_classifier(samples, labels, RANDOM_FEATURES, RIDGE_LAMBDA, RANDOM_SEED)
     threshold, threshold_metrics = _choose_threshold_on(
         threshold_items, _score_frames(threshold_items, model, include_position)
     )
@@ -309,7 +306,7 @@ def resolve_missions(candidates, selection=None):
 def evaluate_cross_mission(store, selection=None, output_dir: Path | None = None, width: int = MODEL_WIDTH):
     candidates = []
     for mission in store.list():
-        records = _confirmed_annotations(store.root / mission.id)
+        records = confirmed_annotations(store.root / mission.id)
         if records:
             candidates.append({"id": mission.id, "name": mission.name, "mission": mission, "confirmed": len(records)})
     first_entry, second_entry = resolve_missions(candidates, selection)
@@ -319,8 +316,8 @@ def evaluate_cross_mission(store, selection=None, output_dir: Path | None = None
     decoded = {}
     for mission in (first, second):
         mission_dir = store.root / mission.id
-        records = _confirmed_annotations(mission_dir)
-        decoded[mission.id] = _read_frames(mission, mission_dir, records, width)
+        records = confirmed_annotations(mission_dir)
+        decoded[mission.id] = read_frames(mission, mission_dir, records, width)
         if len(decoded[mission.id]) < 4:
             raise ValueError(f"Mission {mission.name} liefert zu wenige dekodierbare Labelframes")
 
@@ -335,7 +332,7 @@ def evaluate_cross_mission(store, selection=None, output_dir: Path | None = None
     rows = []
     for key, train_mission, eval_mission, include_position in plan:
         result = run_single(decoded[train_mission.id], decoded[eval_mission.id], include_position)
-        evidence = _write_evidence(evidence_dir, key, result["per_frame"])
+        evidence = write_evidence(evidence_dir, key, result["per_frame"])
         rows.append(
             {
                 "key": key,

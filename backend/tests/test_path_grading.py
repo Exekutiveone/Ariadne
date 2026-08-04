@@ -1,12 +1,7 @@
 import numpy as np
 
-from backend.app.path_model import (
-    GRADE_ONTOLOGY,
-    _decode_rle,
-    _encode_binary_rle,
-    _grade_prediction,
-    _grading_summary,
-)
+from backend.app.path_features import GRADE_ONTOLOGY, grade_prediction, grading_summary
+from backend.app.path_masks import decode_rle, encode_binary_rle
 
 
 def _scores_from_margins(margins, threshold=0.5):
@@ -22,7 +17,7 @@ def test_green_bands_grade_by_distance_from_threshold():
     margins[:, 20:] = 0.1
     prediction = np.ones(shape, np.uint8)
 
-    grades = _grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
+    grades = grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
 
     assert grades[5, 4] == GRADE_ONTOLOGY["safe"]["value"]
     assert grades[5, 15] == GRADE_ONTOLOGY["good"]["value"]
@@ -35,7 +30,7 @@ def test_grades_partition_matches_binary_prediction():
     scores = rng.normal(0, 1, shape[0] * shape[1]).astype(np.float32)
     prediction = (rng.random(shape) > 0.5).astype(np.uint8)
 
-    grades = _grade_prediction(scores, prediction, 0.2, shape)
+    grades = grade_prediction(scores, prediction, 0.2, shape)
 
     inside = prediction.astype(bool)
     assert np.isin(grades[inside], (1, 2, 3)).all()
@@ -47,7 +42,7 @@ def test_uncertainty_band_outside_path_is_risky_orange():
     margins = np.full(shape, -0.05, np.float32)
     prediction = np.zeros(shape, np.uint8)
 
-    grades = _grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
+    grades = grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
 
     assert (grades == GRADE_ONTOLOGY["risky"]["value"]).all()
 
@@ -65,7 +60,7 @@ def test_problem_zones_require_size_and_adjacency_to_path():
     prediction = np.zeros(shape, np.uint8)
     prediction[120:, :] = 1
 
-    grades = _grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
+    grades = grade_prediction(_scores_from_margins(margins), prediction, 0.5, shape)
 
     assert grades[110, 30] == GRADE_ONTOLOGY["problem"]["value"]
     assert grades[15, 30] == GRADE_ONTOLOGY["unrated"]["value"]
@@ -83,8 +78,8 @@ def test_grading_is_deterministic():
     scores = rng.normal(0, 1, shape[0] * shape[1]).astype(np.float32)
     prediction = (rng.random(shape) > 0.6).astype(np.uint8)
 
-    first = _grade_prediction(scores, prediction, 0.1, shape)
-    second = _grade_prediction(scores, prediction, 0.1, shape)
+    first = grade_prediction(scores, prediction, 0.1, shape)
+    second = grade_prediction(scores, prediction, 0.1, shape)
 
     assert np.array_equal(first, second)
 
@@ -94,11 +89,11 @@ def test_grade_mask_survives_rle_round_trip():
     rng = np.random.default_rng(4)
     scores = rng.normal(0, 1, shape[0] * shape[1]).astype(np.float32)
     prediction = (rng.random(shape) > 0.5).astype(np.uint8)
-    grades = _grade_prediction(scores, prediction, 0.0, shape)
+    grades = grade_prediction(scores, prediction, 0.0, shape)
 
-    record = {"width": shape[1], "height": shape[0], "rle": _encode_binary_rle(grades)}
+    record = {"width": shape[1], "height": shape[0], "rle": encode_binary_rle(grades)}
 
-    assert np.array_equal(_decode_rle(record), grades)
+    assert np.array_equal(decode_rle(record), grades)
 
 
 def test_ontology_and_summary_expose_agreed_colours_and_bands():
@@ -109,7 +104,7 @@ def test_ontology_and_summary_expose_agreed_colours_and_bands():
     assert GRADE_ONTOLOGY["risky"]["color"] == "#f08c3a"
     assert GRADE_ONTOLOGY["problem"]["color"] == "#e05b52"
 
-    summary = _grading_summary(0.31)
+    summary = grading_summary(0.31)
 
     assert summary["threshold"] == 0.31
     assert summary["bands"] == {"safe_min_margin": 0.6, "good_min_margin": 0.25, "risky_min_margin": -0.2}

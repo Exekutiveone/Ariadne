@@ -14,16 +14,14 @@ import cv2
 import numpy as np
 
 from .global_path_model import current_global_model_dir
-from .path_model import (
-    _apply_refinements,
-    _clean_prediction,
-    _comparison_mask,
-    _encode_binary_rle,
-    _features,
-    _load_refinements,
-    _polygon_mask,
-    _predict_scores,
+from .path_features import clean_prediction, pixel_features, predict_scores
+from .path_masks import (
+    apply_refinements,
+    comparison_mask,
     confusion_counts,
+    encode_binary_rle,
+    load_refinements,
+    polygon_mask,
     symmetric_metrics,
 )
 from .processor import video_path
@@ -309,11 +307,11 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
                 break
             frame_index, image = item
             resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
-            prediction = _clean_prediction(_predict_scores(_features(resized), model), (height, width), threshold)
+            prediction = clean_prediction(predict_scores(pixel_features(resized), model), (height, width), threshold)
             frame = {
                 "frame_index": frame_index,
                 "timestamp_ms": round(frame_index / fps * 1000),
-                "mask": {"width": width, "height": height, "rle": _encode_binary_rle(prediction)},
+                "mask": {"width": width, "height": height, "rle": encode_binary_rle(prediction)},
                 "path_fraction": round(float(prediction.mean()), 5),
             }
             annotation_path = store.root / mission_id / "ground_truth" / video_id / f"{frame_index:09d}.json"
@@ -321,18 +319,18 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
                 try:
                     annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
                     if annotation.get("polygons"):
-                        truth = _apply_refinements(
-                            _polygon_mask(annotation, width, height), store.root / mission_id, video_id, frame_index
+                        truth = apply_refinements(
+                            polygon_mask(annotation, width, height), store.root / mission_id, video_id, frame_index
                         )
-                        comparison = _comparison_mask(truth, prediction)
+                        comparison = comparison_mask(truth, prediction)
                         frame["evaluation"] = {
                             "metrics": symmetric_metrics(confusion_counts(truth, prediction)),
                             "comparison_mask": {
                                 "width": width,
                                 "height": height,
-                                "rle": _encode_binary_rle(comparison),
+                                "rle": encode_binary_rle(comparison),
                             },
-                            "refinement_count": len(_load_refinements(store.root / mission_id, video_id, frame_index)),
+                            "refinement_count": len(load_refinements(store.root / mission_id, video_id, frame_index)),
                         }
                 except (OSError, ValueError, KeyError, TypeError):
                     pass

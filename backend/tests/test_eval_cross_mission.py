@@ -9,7 +9,7 @@ from backend.app.eval_cross_mission import (
     render_report,
     resolve_missions,
 )
-from backend.app.path_model import _features
+from backend.app.path_features import pixel_features
 
 
 def _frame(height=8, width=12, seed=1):
@@ -18,9 +18,9 @@ def _frame(height=8, width=12, seed=1):
 
 def test_position_features_are_exactly_the_last_eight_columns():
     # Pinnt die Annahme, auf der die Laeufe C und D beruhen. Aendert sich die
-    # Kanalreihenfolge in _features, muss POSITION_FEATURE_COUNT nachgezogen werden.
+    # Kanalreihenfolge in pixel_features, muss POSITION_FEATURE_COUNT nachgezogen werden.
     image = _frame()
-    full = _features(image)
+    full = pixel_features(image)
 
     reduced = _features_for(image, include_position=False)
 
@@ -31,14 +31,14 @@ def test_position_features_are_exactly_the_last_eight_columns():
     # verschiedenen Bildpositionen unterscheidet sich nur noch ohne sie nicht mehr.
     flat = np.zeros((4, 4, 3), np.uint8)
     flat[:] = (120, 130, 140)
-    positional = _features(flat)
+    positional = pixel_features(flat)
     assert not np.allclose(positional[0], positional[-1])
     assert np.allclose(_features_for(flat, include_position=False)[0], _features_for(flat, include_position=False)[-1])
 
 
 def _bottom_path_mask(size=20):
     """Untere Bildhaelfte ist Weg — gross genug, dass die Morphologie in
-    _clean_prediction die Flaeche nicht wegraeumt."""
+    clean_prediction die Flaeche nicht wegraeumt."""
     mask = np.zeros((size, size), np.uint8)
     mask[size // 2 :] = 1
     return mask
@@ -193,16 +193,16 @@ def test_report_names_the_data_basis_and_marks_the_selected_missions():
 
 
 def test_reduced_features_still_feed_the_existing_classifier():
-    from backend.app.path_model import RANDOM_FEATURES, RIDGE_LAMBDA, _fit_kernel_classifier, _predict_scores
+    from backend.app.path_features import RANDOM_FEATURES, RIDGE_LAMBDA, fit_kernel_classifier, predict_scores
 
     image = _frame(6, 6, seed=3)
     reduced = _features_for(image, include_position=False)
     labels = (np.arange(len(reduced)) % 2).astype(np.uint8)
 
-    model = _fit_kernel_classifier(reduced, labels, RANDOM_FEATURES, RIDGE_LAMBDA, seed=42)
+    model = fit_kernel_classifier(reduced, labels, RANDOM_FEATURES, RIDGE_LAMBDA, seed=42)
 
     assert model["mean"].shape[0] == 14
-    assert _predict_scores(reduced, model).shape == (len(reduced),)
+    assert predict_scores(reduced, model).shape == (len(reduced),)
     with pytest.raises(ValueError):
         # Ein Modell mit 14 Merkmalen darf 22-spaltige Merkmale nicht stillschweigend annehmen.
-        _predict_scores(_features_for(image, include_position=True), model)
+        predict_scores(_features_for(image, include_position=True), model)

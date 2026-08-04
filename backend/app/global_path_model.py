@@ -17,37 +17,38 @@ from .corridor import (
     evaluate_corridors,
 )
 from .critical_flags import load_critical_flag_records
-from .path_model import (
+from .path_dataset import confirmed_annotations, frame_split, read_frames, read_original_frame
+from .path_features import (
     GRADE_ONTOLOGY,
-    MODEL_ID,
-    MODEL_SCHEMA_VERSION,
     MODEL_WIDTH,
     RANDOM_FEATURES,
     RANDOM_SEED,
     RIDGE_LAMBDA,
     SAMPLES_PER_CLASS_PER_FRAME,
-    _apply_refinements,
-    _choose_threshold,
-    _clean_prediction,
-    _comparison_mask,
-    _confirmed_annotations,
-    _decode_rle,
-    _encode_binary_rle,
-    _evaluate,
-    _features,
-    _fit_kernel_classifier,
-    _frame_split,
-    _grade_prediction,
-    _grading_summary,
-    _load_model_bundle,
-    _load_refinements,
-    _polygon_mask,
-    _predict_scores,
-    _read_frames,
-    _read_original_frame,
-    _write_evidence,
+    clean_prediction,
+    fit_kernel_classifier,
+    grade_prediction,
+    grading_summary,
+    pixel_features,
+    predict_scores,
+)
+from .path_masks import (
+    apply_refinements,
+    comparison_mask,
     confusion_counts,
+    decode_rle,
+    encode_binary_rle,
+    load_refinements,
+    polygon_mask,
     symmetric_metrics,
+)
+from .path_model import (
+    MODEL_ID,
+    MODEL_SCHEMA_VERSION,
+    choose_threshold,
+    evaluate_frames,
+    load_model_bundle,
+    write_evidence,
 )
 
 
@@ -59,7 +60,7 @@ def global_dataset_summary(store):
     missions = []
     for mission in store.list():
         mission_dir = store.root / mission.id
-        records = _confirmed_annotations(mission_dir)
+        records = confirmed_annotations(mission_dir)
         critical_flags = load_critical_flag_records(mission_dir)
         refinements = 0
         for path in (mission_dir / "path_refinements").glob("*/*.json"):
@@ -108,13 +109,13 @@ def train_global_path_model(store):
     all_records = []
     for mission in store.list():
         mission_dir = store.root / mission.id
-        records = _confirmed_annotations(mission_dir)
+        records = confirmed_annotations(mission_dir)
         if not records:
             continue
         records = [{**record, "mission_id": mission.id, "mission_name": mission.name} for record in records]
-        train_records, validation_records = _frame_split(records)
-        decoded_train = _read_frames(mission, mission_dir, train_records, MODEL_WIDTH)
-        decoded_validation = _read_frames(mission, mission_dir, validation_records, MODEL_WIDTH)
+        train_records, validation_records = frame_split(records)
+        decoded_train = read_frames(mission, mission_dir, train_records, MODEL_WIDTH)
+        decoded_validation = read_frames(mission, mission_dir, validation_records, MODEL_WIDTH)
         train_frames.extend(decoded_train)
         validation_frames.extend(decoded_validation)
         all_records.extend(records)
@@ -135,7 +136,7 @@ def train_global_path_model(store):
     rng = np.random.default_rng(RANDOM_SEED)
     samples, labels = [], []
     for item in train_frames:
-        features = _features(item["image"])
+        features = pixel_features(item["image"])
         flat = item["mask"].reshape(-1)
         positive = np.flatnonzero(flat == 1)
         negative = np.flatnonzero(flat == 0)
@@ -150,12 +151,12 @@ def train_global_path_model(store):
     training_samples = np.vstack(samples)
     training_labels = np.concatenate(labels)
     order = rng.permutation(len(training_labels))
-    model = _fit_kernel_classifier(
+    model = fit_kernel_classifier(
         training_samples[order], training_labels[order], RANDOM_FEATURES, RIDGE_LAMBDA, RANDOM_SEED
     )
-    threshold, threshold_metrics = _choose_threshold(validation_frames, model)
-    validation_metrics, evaluated = _evaluate(validation_frames, model, threshold)
-    train_metrics, _ = _evaluate(train_frames, model, threshold)
+    threshold, threshold_metrics = choose_threshold(validation_frames, model)
+    validation_metrics, evaluated = evaluate_frames(validation_frames, model, threshold)
+    train_metrics, _ = evaluate_frames(train_frames, model, threshold)
 
     run_id = f"global-path-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
     root = _global_root(store.root)
@@ -166,7 +167,7 @@ def train_global_path_model(store):
     evidence_dir.mkdir()
     try:
         np.savez_compressed(staging / "model.npz", **model, threshold=np.asarray([threshold], np.float32))
-        evidence = _write_evidence(evidence_dir, "global", evaluated, "/api/v1/path-model/global/evidence")
+        evidence = write_evidence(evidence_dir, "global", evaluated, "/api/v1/path-model/global/evidence")
         result = {
             "schema_version": MODEL_SCHEMA_VERSION,
             "scope": "global_cross_mission",
@@ -233,15 +234,15 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
     if not video:
         raise LookupError("Video nicht gefunden")
     model_dir = current_global_model_dir(store.root)
-    model, threshold, result = _load_model_bundle(model_dir)
+    model, threshold, result = load_model_bundle(model_dir)
     mission_dir = store.root / mission_id
-    image, fps, source_width, source_height = _read_original_frame(mission_dir, video_id, frame_index)
+    image, fps, source_width, source_height = read_original_frame(mission_dir, video_id, frame_index)
     width = int(result["model"]["input_width"])
     height = max(48, round(width * source_height / max(1, source_width)))
     resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
-    scores = _predict_scores(_features(resized), model)
-    prediction = _clean_prediction(scores, (height, width), threshold)
-    grades = _grade_prediction(scores, prediction, threshold, (height, width))
+    scores = predict_scores(pixel_features(resized), model)
+    prediction = clean_prediction(scores, (height, width), threshold)
+    grades = grade_prediction(scores, prediction, threshold, (height, width))
     response = {
         "schema_version": MODEL_SCHEMA_VERSION,
         "scope": "global_cross_mission",
@@ -250,10 +251,10 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
         "video_id": video_id,
         "frame_index": frame_index,
         "timestamp_ms": round(frame_index / fps * 1000),
-        "mask": {"width": width, "height": height, "rle": _encode_binary_rle(prediction)},
-        "grade_mask": {"width": width, "height": height, "rle": _encode_binary_rle(grades)},
+        "mask": {"width": width, "height": height, "rle": encode_binary_rle(prediction)},
+        "grade_mask": {"width": width, "height": height, "rle": encode_binary_rle(grades)},
         "grade_ontology": GRADE_ONTOLOGY,
-        "grading": _grading_summary(threshold),
+        "grading": grading_summary(threshold),
         "path_fraction": round(float(prediction.mean()), 5),
         "source": "global_cpu_model_inference_on_exact_original_video_frame",
     }
@@ -262,14 +263,14 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
         try:
             annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
             if annotation.get("polygons"):
-                truth = _apply_refinements(_polygon_mask(annotation, width, height), mission_dir, video_id, frame_index)
-                comparison = _comparison_mask(truth, prediction)
+                truth = apply_refinements(polygon_mask(annotation, width, height), mission_dir, video_id, frame_index)
+                comparison = comparison_mask(truth, prediction)
                 response["evaluation"] = {
                     "annotation_status": annotation.get("status"),
                     "metrics": symmetric_metrics(confusion_counts(truth, prediction)),
-                    "comparison_mask": {"width": width, "height": height, "rle": _encode_binary_rle(comparison)},
+                    "comparison_mask": {"width": width, "height": height, "rle": encode_binary_rle(comparison)},
                     "legend": {"1": "correct_path", "2": "missed_label", "3": "invented_path"},
-                    "refinement_count": len(_load_refinements(mission_dir, video_id, frame_index)),
+                    "refinement_count": len(load_refinements(mission_dir, video_id, frame_index)),
                 }
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -292,8 +293,8 @@ def corridor_check_global_frame(
     die vorhergesagte Maske dekodiert und weitergereicht.
     """
     prediction = predict_global_path_frame(store, mission_id, video_id, frame_index)
-    mask = _decode_rle(prediction["mask"])
-    grade_mask = _decode_rle(prediction["grade_mask"]) if prediction.get("grade_mask") else None
+    mask = decode_rle(prediction["mask"])
+    grade_mask = decode_rle(prediction["grade_mask"]) if prediction.get("grade_mask") else None
     result = evaluate_corridors(
         mask,
         grade_mask,

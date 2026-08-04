@@ -29,7 +29,7 @@ from uuid import uuid4
 import cv2
 import numpy as np
 
-from .path_model import _read_original_frame
+from .path_dataset import read_original_frame
 from .processor import video_path
 
 TERRAIN_MODEL_SCHEMA_VERSION = "1.0"
@@ -601,7 +601,7 @@ def predict_terrain_frame(
     model, result = _load_terrain_bundle(store.root)
     classes = result["classes"]
     threshold = result["model"]["confidence_threshold"] if confidence_threshold is None else float(confidence_threshold)
-    image, fps, source_width, source_height = _read_original_frame(store.root / mission_id, video_id, frame_index)
+    image, fps, source_width, source_height = read_original_frame(store.root / mission_id, video_id, frame_index)
     height = max(48, round(TERRAIN_MODEL_WIDTH * source_height / max(1, source_width)))
     resized = cv2.resize(image, (TERRAIN_MODEL_WIDTH, height), interpolation=cv2.INTER_AREA)
     scores = _class_scores(_frame_descriptor(resized)[None, :], model)

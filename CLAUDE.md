@@ -14,8 +14,15 @@ werden dem Nutzer auf Deutsch angezeigt. Bezeichner im Code sind Englisch.
 - `backend/app/storage.py` — `MissionStore`, Ablage unter `data/missions/<mission_id>`.
 - `backend/app/segmentation.py`, `terrain.py` — Vegetationsinstanzen, Boden- und
   Befahrbarkeitsmasken, ARGUS-Korridor.
+- `backend/app/path_masks.py` — Masken des Wegmodells: RLE, Polygone, Refinements,
+  Vergleich und Metriken. Kennt weder Modell noch Video.
+- `backend/app/path_features.py` — 22 Pixelmerkmale, Random-Feature-Ridge und die
+  Abstufung. Reine Numerik, kein Dateizugriff.
+- `backend/app/path_dataset.py` — Labels einsammeln, nach Videos splitten, Frames
+  dekodieren. Der I/O-Teil samt VideoCapture-Cache.
 - `backend/app/path_model.py` — missionsspezifisches CPU-Wegmodell
-  (`ariadne-cpu-path-rff`): Random-Feature-Ridge-Klassifikator ueber 22 Pixelmerkmalen.
+  (`ariadne-cpu-path-rff`): Training, Laufverwaltung und Einzelframe-Inferenz auf
+  Basis der drei Module darueber.
 - `backend/app/global_path_model.py`, `global_video_analysis.py` — missionsuebergreifendes
   Modell und persistente Vollvideo-Inferenz mit wiederaufnehmbaren Checkpoints.
 - `backend/app/terrain_model.py` — videobasierte Terrainklassifizierung
@@ -83,8 +90,14 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   `from __future__ import annotations`.
 - Ground-Truth-Polygonpunkte sind auf das Originalbild normiert, nie in Pixeln.
   Aenderungen an einem Frame duerfen nie einen anderen Frame veraendern.
-- Aendert sich die Merkmalszahl in `_features`, werden alle gespeicherten Modelle
-  ungueltig. `MODEL_SCHEMA_VERSION` anheben; `test_path_model_core.py` pinnt die Zahl.
+- Aendert sich die Merkmalszahl in `pixel_features` (`path_features.py`), werden alle
+  gespeicherten Modelle ungueltig. `MODEL_SCHEMA_VERSION` anheben;
+  `test_path_model_core.py` pinnt die Zahl.
+- Module tauschen ausschliesslich oeffentliche Namen aus. Kein `from .x import _y`
+  zwischen Modulen — bis 04.08.2026 zog `global_path_model` 20 private Namen aus
+  `path_model`, also eine Schnittstelle ohne jede Zusage. Wird ein privater Name
+  anderswo gebraucht, gehoert er in ein passendes Modul und bekommt einen Namen
+  ohne Unterstrich.
 - Train/Validation werden nach Frames getrennt und die Schwelle nur auf
   Validierungsframes gewaehlt. Diese Trennung nicht aufweichen.
 - Beim Terrainmodell laeuft die Trennung eine Ebene hoeher: Train, Validierung
