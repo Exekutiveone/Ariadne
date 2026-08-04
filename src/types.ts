@@ -701,6 +701,9 @@ export type GlobalVideoAnalysisResult = {
   height: number
   analyzed_frames: number
   runtime_seconds: number
+  /** Threshold-abhaengig, aber gleich fuer alle Frames dieses Laufs — einmal hier statt je Frame. */
+  grade_ontology?: GradeOntology
+  grading?: Grading
   frames: GlobalVideoAnalysisFrame[]
 }
 export type TerrainRegion = {

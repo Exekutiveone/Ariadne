@@ -261,6 +261,10 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
       ? {
           mask: analyzedFrame.mask,
           grade_mask: analyzedFrame.grade_mask,
+          // Threshold-abhaengig, aber gleich fuer den ganzen Lauf — kommt vom
+          // Analyseergebnis, nicht vom Einzelframe (siehe GlobalVideoAnalysisResult).
+          grade_ontology: analysisResult!.grade_ontology,
+          grading: analysisResult!.grading,
           evaluation: analyzedFrame.evaluation,
           path_fraction: analyzedFrame.path_fraction,
           model_run_id: analysisResult!.model_run_id,
@@ -658,7 +662,9 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                 onClick={() => void analyzeVideo()}
               >
                 {analysisResult
-                  ? 'ANALYSE BEREITS FERTIG'
+                  ? needsGradePreview
+                    ? 'ANALYSE ERNEUERN (ABSTUFUNG NACHRÜSTEN)'
+                    : 'ANALYSE BEREITS FERTIG'
                   : analysisStatus?.status === 'running' || analysisStatus?.status === 'queued'
                     ? 'VIDEO WIRD ANALYSIERT …'
                     : 'VIDEO VOLLSTÄNDIG ANALYSIEREN'}
@@ -902,8 +908,9 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
                 )}
                 {showGrades && analysisResult && !analyzedFrame?.grade_mask && (
                   <small className="grade-note">
-                    Die gespeicherte Videoanalyse enthält noch keine Abstufung; sie wird für den aktuellen Frame live berechnet. Während der
-                    Wiedergabe erscheint die einfarbige vorberechnete Maske.
+                    Diese Analyse ist älter als die durchgehende Abstufung: Während der Wiedergabe erscheint nur die einfarbige
+                    vorberechnete Maske, die Abstufung wird lediglich im Pausenzustand einzeln nachberechnet. „ANALYSE ERNEUERN“ oben
+                    berechnet das Video einmalig neu — danach läuft die Abstufung durchgehend mit, auch bei laufender Wiedergabe.
                   </small>
                 )}
                 {analysisResult && (

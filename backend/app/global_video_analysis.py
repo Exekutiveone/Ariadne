@@ -14,7 +14,14 @@ import cv2
 import numpy as np
 
 from .global_path_model import current_global_model_dir
-from .path_features import clean_prediction, pixel_features, predict_scores
+from .path_features import (
+    GRADE_ONTOLOGY,
+    clean_prediction,
+    grade_prediction,
+    grading_summary,
+    pixel_features,
+    predict_scores,
+)
 from .path_masks import (
     apply_refinements,
     comparison_mask,
@@ -27,6 +34,15 @@ from .path_masks import (
 from .processor import video_path
 from .runtime_paths import runtime_root
 from .storage import MissionStore
+
+# 1.1 fuegt die Abstufung (grade_mask) je Frame hinzu, vorher enthielt der
+# Batch-Lauf nur die binaere Maske; die Abstufung entstand ausschliesslich
+# live im Einzelframe-Endpunkt. Deshalb blieb die Anzeige waehrend der
+# Wiedergabe auf die einfarbige Maske beschraenkt und die abgestufte Ansicht
+# erschien nur im Pausenzustand, wo der Player den Einzelframe live nachholte.
+# Alte Ergebnisse und Checkpoints ohne diese Version werden verworfen statt
+# wiederverwendet, damit kein Lauf halb mit und halb ohne Abstufung entsteht.
+GLOBAL_VIDEO_ANALYSIS_SCHEMA_VERSION = "1.1"
 
 
 def _runtime_root():
@@ -108,8 +124,22 @@ def _load_checkpoint(directory: Path):
             break
         if chunk.get("start_frame") != len(frames):
             break
-        frames.extend(chunk.get("frames", []))
+        chunk_frames = chunk.get("frames", [])
+        if chunk_frames and "grade_mask" not in chunk_frames[0]:
+            # Checkpoint stammt von vor GLOBAL_VIDEO_ANALYSIS_SCHEMA_VERSION 1.1.
+            # Nicht fortsetzen, sonst blieben die fruehen Frames dauerhaft ohne
+            # Abstufung, waehrend die spaeteren sie haetten.
+            return []
+        frames.extend(chunk_frames)
     return frames
+
+
+def _completed_result_is_current_schema(path: Path) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return payload.get("schema_version") == GLOBAL_VIDEO_ANALYSIS_SCHEMA_VERSION
 
 
 def _write_chunk(directory: Path, frames: list[dict], start: int):
@@ -162,7 +192,15 @@ def start_global_video_analysis(store, mission_id: str, video_id: str):
         return current
     completed_result = _analysis_dir(store.root, model_dir.name, mission_id, video_id) / "result.json"
     portable_result = _portable_analysis_dir(store.root, model_dir.name, mission_id, video_id) / "result.json"
-    if current and current.get("status") == "completed" and (completed_result.is_file() or portable_result.is_file()):
+    existing_result = (
+        completed_result if completed_result.is_file() else (portable_result if portable_result.is_file() else None)
+    )
+    if (
+        current
+        and current.get("status") == "completed"
+        and existing_result
+        and _completed_result_is_current_schema(existing_result)
+    ):
         return current
     directory = _analysis_dir(store.root, model_dir.name, mission_id, video_id)
     directory.mkdir(parents=True, exist_ok=True)
@@ -307,11 +345,14 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
                 break
             frame_index, image = item
             resized = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
-            prediction = clean_prediction(predict_scores(pixel_features(resized), model), (height, width), threshold)
+            scores = predict_scores(pixel_features(resized), model)
+            prediction = clean_prediction(scores, (height, width), threshold)
+            grades = grade_prediction(scores, prediction, threshold, (height, width))
             frame = {
                 "frame_index": frame_index,
                 "timestamp_ms": round(frame_index / fps * 1000),
                 "mask": {"width": width, "height": height, "rle": encode_binary_rle(prediction)},
+                "grade_mask": {"width": width, "height": height, "rle": encode_binary_rle(grades)},
                 "path_fraction": round(float(prediction.mean()), 5),
             }
             annotation_path = store.root / mission_id / "ground_truth" / video_id / f"{frame_index:09d}.json"
@@ -363,7 +404,7 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
         _write_chunk(directory, frames, chunk_start)
         elapsed = time.perf_counter() - started
         result = {
-            "schema_version": "1.0",
+            "schema_version": GLOBAL_VIDEO_ANALYSIS_SCHEMA_VERSION,
             "model_run_id": model_run_id,
             "mission_id": mission_id,
             "video_id": video_id,
@@ -373,6 +414,10 @@ def run_worker(missions_root: Path, mission_id: str, video_id: str, model_run_id
             "height": source_height,
             "analyzed_frames": len(frames),
             "runtime_seconds": round(elapsed, 2),
+            # Threshold-abhaengig, aber gleich fuer alle Frames dieses Laufs -
+            # einmal hier statt in jedem Frame gespeichert.
+            "grade_ontology": GRADE_ONTOLOGY,
+            "grading": grading_summary(threshold),
             "frames": frames,
         }
         _write_json(directory / "result.json", result)

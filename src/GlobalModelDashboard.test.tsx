@@ -338,8 +338,10 @@ test('grades an already analyzed video from the live prediction and says so', as
   expect(screen.getByText('Problemzone / Hindernis')).toBeInTheDocument()
   // Der Vorbehalt steht sowohl an der Abstufung als auch an der Korridorpruefung.
   expect(screen.getAllByText(/keine sicherheitsrelevante Fahrfreigabe/).length).toBeGreaterThan(0)
-  // Ehrlicher Hinweis, dass die gespeicherte Analyse die Abstufung noch nicht enthaelt.
-  expect(screen.getByText(/enthält noch keine Abstufung/)).toBeInTheDocument()
+  // Ehrlicher Hinweis, dass die gespeicherte Analyse die Abstufung noch nicht enthaelt,
+  // und dass "ANALYSE ERNEUERN" das nachholt.
+  expect(screen.getByText(/ist älter als die durchgehende Abstufung/)).toBeInTheDocument()
+  expect(screen.getByRole('button', {name: 'ANALYSE ERNEUERN (ABSTUFUNG NACHRÜSTEN)'})).toBeInTheDocument()
 })
 
 test('falls back to the precomputed binary mask when grading is switched off', async () => {
