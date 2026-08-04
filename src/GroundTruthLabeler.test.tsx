@@ -104,6 +104,7 @@ vi.mock('./api', () => ({
   }),
   saveGroundTruth: vi.fn(),
   updateVideoTerrainCategory,
+  updateVideoFullyNotTraversable: vi.fn(async () => ({fully_not_traversable: true})),
   runSegmentation: vi.fn(),
   getPathModel: async () => null,
   getPathTrainingJob: async () => null,
@@ -111,6 +112,12 @@ vi.mock('./api', () => ({
   savePathRefinement: vi.fn(),
   startPathTrainingJob: vi.fn(),
   trainPathModel: vi.fn(),
+  listOffPathIntervals: vi.fn(async () => []),
+  createOffPathInterval: vi.fn(),
+  deleteOffPathInterval: vi.fn(),
+  listCriticalFlags: vi.fn(async () => ({items: []})),
+  saveCriticalFlag: vi.fn(),
+  deleteCriticalFlag: vi.fn(),
 }))
 
 import GroundTruthLabeler, {

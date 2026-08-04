@@ -11,7 +11,28 @@ export type Mission = {
   status: 'READY_FOR_GOAL_2'
   created_at: string
   route: Point[]
-  videos: {id: string; original_name: string; size_bytes: number; terrain_category?: string | null}[]
+  videos: {
+    id: string
+    original_name: string
+    size_bytes: number
+    terrain_category?: string | null
+    fully_not_traversable?: boolean
+  }[]
+}
+
+/** Zeitspanne, waehrend des Anschauens markiert: in diesem Bereich zeigt KEIN
+ *  Frame einen befahrbaren Bereich. Geht als vollstaendig negative Frames
+ *  direkt ins Wegtraining. */
+export type OffPathInterval = {
+  id: string
+  schema_version: string
+  mission_id: string
+  video_id: string
+  start_ms: number
+  end_ms: number
+  note: string
+  annotator: string
+  created_at: string
 }
 
 export type Analysis = {
@@ -188,6 +209,9 @@ export type GroundTruthAnnotation = {
   status: GroundTruthStatus
   annotator: string
   notes: string
+  /** Linear (der Reihe nach) oder Shuffle (gemischte Frames mehrerer Videos)
+   *  — welcher Arbeitsmodus aktiv war, als dieser Frame gelabelt wurde. */
+  label_mode: 'linear' | 'shuffle'
   revision: number
   updated_at: string
   statistics: {
@@ -206,7 +230,16 @@ export type GroundTruthSummary = {
   counts: {total: number; draft: number; confirmed: number; skipped: number}
   items: (Pick<
     GroundTruthAnnotation,
-    'video_id' | 'frame_index' | 'timestamp_ms' | 'source_frame_hash' | 'status' | 'annotator' | 'revision' | 'updated_at' | 'statistics'
+    | 'video_id'
+    | 'frame_index'
+    | 'timestamp_ms'
+    | 'source_frame_hash'
+    | 'status'
+    | 'annotator'
+    | 'revision'
+    | 'updated_at'
+    | 'statistics'
+    | 'label_mode'
   > & {polygons?: GroundTruthPolygon[]; mask?: TerrainMask})[]
 }
 export type LabelingVideo = {
@@ -218,6 +251,7 @@ export type LabelingVideo = {
   height: number
   duration_seconds: number
   terrain_category?: string | null
+  fully_not_traversable?: boolean
 }
 export type LabelingVideoManifest = {
   mission_id: string

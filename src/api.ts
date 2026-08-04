@@ -12,8 +12,9 @@ import type {
   LabelingVideoManifest,
   LabelOntology,
   LabelTracks,
-  RoiProfile,
   Mission,
+  OffPathInterval,
+  RoiProfile,
   PathModelResult,
   PathPrediction,
   PathTrainingJob,
@@ -75,7 +76,7 @@ export async function updateVideoTerrainCategory(
   missionId: string,
   videoId: string,
   payload: {terrain_category: string | null},
-): Promise<{id: string; original_name: string; terrain_category?: string | null}> {
+): Promise<{id: string; original_name: string; terrain_category?: string | null; fully_not_traversable?: boolean}> {
   const r = await fetch(`/api/v1/missions/${missionId}/videos/${videoId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
@@ -87,6 +88,51 @@ export async function updateVideoTerrainCategory(
   } catch {}
   if (!r.ok) throw new Error(body.detail || 'Terrainkategorie konnte nicht gespeichert werden')
   return body
+}
+export async function updateVideoFullyNotTraversable(
+  missionId: string,
+  videoId: string,
+  fullyNotTraversable: boolean,
+): Promise<{id: string; original_name: string; terrain_category?: string | null; fully_not_traversable?: boolean}> {
+  // Nur dieses eine Feld im Body: das Backend aendert ausschliesslich
+  // mitgeschickte Felder, eine reine Terrainkategorie bleibt unberuehrt.
+  const r = await fetch(`/api/v1/missions/${missionId}/videos/${videoId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({fully_not_traversable: fullyNotTraversable}),
+  })
+  let body: any = {}
+  try {
+    body = await r.json()
+  } catch {}
+  if (!r.ok) throw new Error(body.detail || 'Video-Komplettlabel konnte nicht gespeichert werden')
+  return body
+}
+export async function listOffPathIntervals(missionId: string, videoId: string): Promise<OffPathInterval[]> {
+  const r = await fetch(`/api/v1/missions/${missionId}/off-path-intervals/${videoId}`)
+  if (!r.ok) throw new Error('Off-Path-Intervalle konnten nicht geladen werden')
+  return r.json()
+}
+export async function createOffPathInterval(
+  missionId: string,
+  videoId: string,
+  payload: {start_ms: number; end_ms: number; note: string; annotator: string},
+): Promise<OffPathInterval> {
+  const r = await fetch(`/api/v1/missions/${missionId}/off-path-intervals/${videoId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  let body: any = {}
+  try {
+    body = await r.json()
+  } catch {}
+  if (!r.ok) throw new Error(body.detail || 'Intervall konnte nicht gespeichert werden')
+  return body
+}
+export async function deleteOffPathInterval(missionId: string, videoId: string, intervalId: string): Promise<void> {
+  const r = await fetch(`/api/v1/missions/${missionId}/off-path-intervals/${videoId}/${intervalId}`, {method: 'DELETE'})
+  if (!r.ok && r.status !== 404) throw new Error('Intervall konnte nicht gelöscht werden')
 }
 export async function getTrajectory(missionId: string, videoId: string, frameIndex: number): Promise<StoredTrajectory | null> {
   const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`)
@@ -288,6 +334,7 @@ export async function saveGroundTruth(
     status: GroundTruthStatus
     annotator: string
     notes: string
+    label_mode?: 'linear' | 'shuffle'
   },
 ): Promise<GroundTruthAnnotation> {
   const r = await fetch(`/api/v1/missions/${missionId}/ground-truth/${videoId}/${frameIndex}`, {

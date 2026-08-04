@@ -161,8 +161,15 @@ vi.mock('./api', () => ({
   runSegmentation: vi.fn(),
   savePathRefinement: vi.fn(),
   updateVideoTerrainCategory: vi.fn(),
+  updateVideoFullyNotTraversable: vi.fn(),
   startPathTrainingJob: vi.fn(),
   trainPathModel: vi.fn(),
+  listOffPathIntervals: vi.fn(async () => []),
+  createOffPathInterval: vi.fn(),
+  deleteOffPathInterval: vi.fn(),
+  listCriticalFlags: vi.fn(async () => ({items: []})),
+  saveCriticalFlag: vi.fn(),
+  deleteCriticalFlag: vi.fn(),
 }))
 
 import GroundTruthLabeler from './GroundTruthLabeler'

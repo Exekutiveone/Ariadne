@@ -1,10 +1,16 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
 import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react'
 import {
+  createOffPathInterval,
+  deleteCriticalFlag,
+  deleteOffPathInterval,
   deleteTrajectory,
   getGroundTruth,
   getRoiProfile,
   getTrajectory,
+  listCriticalFlags,
+  listOffPathIntervals,
+  saveCriticalFlag,
   saveRoiProfile,
   saveTrajectory,
   getLabelingVideos,
@@ -17,6 +23,7 @@ import {
   savePathRefinement,
   startPathTrainingJob,
   trainPathModel,
+  updateVideoFullyNotTraversable,
   updateVideoTerrainCategory,
 } from './api'
 import GradeLegend from './GradeLegend'
@@ -30,6 +37,7 @@ import type {
   LabelingVideo,
   Mission,
   NormalizedPoint,
+  OffPathInterval,
   PathModelResult,
   PathPrediction,
   PathTrainingJob,
@@ -75,6 +83,30 @@ export function buildFrameSelection(total: number, mode: 'stride' | 'count', str
   const safeCount = Math.max(1, Math.min(total, Math.round(count)))
   if (safeCount === 1) return [0]
   return [...new Set(Array.from({length: safeCount}, (_, index) => Math.round((index * (total - 1)) / (safeCount - 1))))]
+}
+
+/** Mischt Frames aus mehreren Videos zu einer Zufallsreihenfolge fuer den
+ *  Shuffle-Modus — je Video annaehernd gleich viele, gleichmaessig verteilt. */
+export function buildShuffleSelection(videos: {video_id: string; total_frames: number}[], totalRequested: number) {
+  if (!videos.length) return []
+  const perVideo = Math.max(1, Math.round(totalRequested / videos.length))
+  const pool = videos.flatMap(video =>
+    buildFrameSelection(video.total_frames, 'count', 0, perVideo).map(frame_index => ({video_id: video.video_id, frame_index})),
+  )
+  // Fisher-Yates: jede Ziehung gleich wahrscheinlich, kein Bias durch sort().
+  for (let index = pool.length - 1; index > 0; index--) {
+    const swap = Math.floor(Math.random() * (index + 1))
+    ;[pool[index], pool[swap]] = [pool[swap], pool[index]]
+  }
+  return pool
+}
+
+/** mm:ss fuer Zeitstempel in Millisekunden, gerundet auf die Sekunde. */
+export function formatTimestamp(ms: number) {
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
 export function normalizedPointFromBounds(
@@ -142,7 +174,7 @@ export default function GroundTruthLabeler({
   const [videos, setVideos] = useState<LabelingVideo[]>([])
   const [activeVideoId, setActiveVideoId] = useState('')
   const [loading, setLoading] = useState(true)
-  const [selectionMode, setSelectionMode] = useState<'stride' | 'count'>('stride')
+  const [selectionMode, setSelectionMode] = useState<'stride' | 'count' | 'shuffle'>('stride')
   const [stride, setStride] = useState(10)
   const [targetCount, setTargetCount] = useState(100)
   const [selectionPosition, setSelectionPosition] = useState(0)
@@ -202,6 +234,32 @@ export default function GroundTruthLabeler({
   const [roiTop, setRoiTop] = useState(0)
   const [roiBottom, setRoiBottom] = useState(0)
   const [roiSaving, setRoiSaving] = useState(false)
+  // Off-Path-Intervalle: waehrend des Anschauens markiert, wo KEIN einziger
+  // Frame befahrbar ist. scrubMs folgt der freien Videoscrubbing-Position und
+  // ist bewusst getrennt vom Polygon-Frame (timestampMs) — beim Anschauen
+  // wird kontinuierlich gesucht, beim Labeln diskret Frame fuer Frame.
+  const [intervalMode, setIntervalMode] = useState(false)
+  const [scrubMs, setScrubMs] = useState(0)
+  const [intervalStartMs, setIntervalStartMs] = useState<number | null>(null)
+  const [intervalNote, setIntervalNote] = useState('')
+  const [offPathIntervals, setOffPathIntervals] = useState<OffPathInterval[]>([])
+  const [intervalSaving, setIntervalSaving] = useState(false)
+  // Video-Komplettlabel: das ganze Video zeigt nur nicht befahrbaren Grund.
+  const [fullyNotTraversableSaving, setFullyNotTraversableSaving] = useState(false)
+  // Linear/Shuffle als echte Arbeitsmodi: shuffleSequence haelt {video_id,
+  // frame_index}-Paare quer durch alle Videos der Mission.
+  const [shuffleSequence, setShuffleSequence] = useState<{video_id: string; frame_index: number}[]>([])
+  const [shuffleTotal, setShuffleTotal] = useState(100)
+  // Kritisch-Flags direkt im Workflow statt nur im Modellzentrum.
+  const [criticalFlags, setCriticalFlags] = useState<
+    {video_id: string; frame_index: number; severity: number; note: string; annotator: string; created_at: string}[]
+  >([])
+  const [flagSeverity, setFlagSeverity] = useState(3)
+  const [flagNote, setFlagNote] = useState('')
+  const [flagSaving, setFlagSaving] = useState(false)
+  // Suchbare Historie.
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<GroundTruthStatus | 'all'>('all')
   const videoRef = useRef<HTMLVideoElement>(null)
   const aiMaskCanvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -220,14 +278,32 @@ export default function GroundTruthLabeler({
     classId: string
   } | null>(null)
 
-  const activeVideo = videos.find(video => video.video_id === activeVideoId) ?? videos[0]
-  const selectedFrames = useMemo(
-    () => (activeVideo ? buildFrameSelection(activeVideo.total_frames, selectionMode, stride, targetCount) : []),
-    [activeVideo, selectionMode, stride, targetCount],
-  )
+  // Im Shuffle-Modus bestimmt die Position in der gemischten Sequenz, welches
+  // Video gerade aktiv ist — nicht die manuelle Dropdown-Auswahl. Beide
+  // Herleitungen haengen an derselben Position und bleiben so synchron.
+  const manualVideo = videos.find(video => video.video_id === activeVideoId) ?? videos[0]
+  const shuffleEntryAt = (position: number) => (selectionMode === 'shuffle' ? shuffleSequence[position] : undefined)
+  const activeVideo =
+    selectionMode === 'shuffle'
+      ? (videos.find(v => v.video_id === shuffleEntryAt(selectionPosition)?.video_id) ?? manualVideo)
+      : manualVideo
+  const selectedFrames = useMemo(() => {
+    if (selectionMode === 'shuffle') return shuffleSequence.map(entry => entry.frame_index)
+    return activeVideo ? buildFrameSelection(activeVideo.total_frames, selectionMode, stride, targetCount) : []
+  }, [activeVideo, selectionMode, stride, targetCount, shuffleSequence])
   const frameIndex = selectedFrames[Math.min(selectionPosition, Math.max(0, selectedFrames.length - 1))] ?? 0
   const timestampMs = activeVideo ? timestampFor(frameIndex, activeVideo.fps) : 0
   const hasPolygon = points.length >= 3
+
+  const regenerateShuffle = () => {
+    setShuffleSequence(
+      buildShuffleSelection(
+        videos.map(video => ({video_id: video.video_id, total_frames: video.total_frames})),
+        shuffleTotal,
+      ),
+    )
+    setSelectionPosition(0)
+  }
 
   useEffect(() => {
     setVideoTerrainDraft(activeVideo?.terrain_category ?? '')
@@ -344,6 +420,141 @@ export default function GroundTruthLabeler({
       cancelled = true
     }
   }, [mission.id, activeVideo?.video_id])
+
+  // Off-Path-Intervalle und Kritisch-Flags des aktiven Videos laden.
+  useEffect(() => {
+    if (!activeVideo) return
+    let cancelled = false
+    void listOffPathIntervals(mission.id, activeVideo.video_id)
+      .then(result => {
+        if (!cancelled) setOffPathIntervals(result)
+      })
+      .catch(() => {
+        if (!cancelled) setOffPathIntervals([])
+      })
+    void listCriticalFlags(mission.id, activeVideo.video_id)
+      .then(result => {
+        if (!cancelled) setCriticalFlags(result.items)
+      })
+      .catch(() => {
+        if (!cancelled) setCriticalFlags([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mission.id, activeVideo?.video_id])
+
+  useEffect(() => {
+    const existing = criticalFlags.find(item => item.video_id === activeVideo?.video_id && item.frame_index === frameIndex)
+    setFlagSeverity(existing?.severity ?? 3)
+    setFlagNote(existing?.note ?? '')
+  }, [criticalFlags, activeVideo?.video_id, frameIndex])
+
+  const activeCriticalFlag = criticalFlags.find(item => item.video_id === activeVideo?.video_id && item.frame_index === frameIndex)
+
+  const reportCriticalFlag = async () => {
+    if (!activeVideo || flagSaving) return
+    setFlagSaving(true)
+    try {
+      await saveCriticalFlag(mission.id, activeVideo.video_id, frameIndex, {
+        severity: flagSeverity,
+        note: flagNote.trim(),
+        annotator: annotator.trim() || 'Simon',
+      })
+      setCriticalFlags(await listCriticalFlags(mission.id, activeVideo.video_id).then(result => result.items))
+      setMessage(`Frame ${frameIndex + 1} als kritisch gemeldet (Stufe ${flagSeverity}).`)
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Meldung konnte nicht gespeichert werden')
+    } finally {
+      setFlagSaving(false)
+    }
+  }
+
+  const removeCriticalFlag = async () => {
+    if (!activeVideo || flagSaving) return
+    setFlagSaving(true)
+    try {
+      await deleteCriticalFlag(mission.id, activeVideo.video_id, frameIndex)
+      setCriticalFlags(current => current.filter(item => !(item.video_id === activeVideo.video_id && item.frame_index === frameIndex)))
+      setMessage(`Kritisch-Meldung für Frame ${frameIndex + 1} entfernt.`)
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Meldung konnte nicht entfernt werden')
+    } finally {
+      setFlagSaving(false)
+    }
+  }
+
+  // Intervall-Modus: der Nutzer scrubbt frei im Video (siehe controls={intervalMode}
+  // am <video>-Element) statt Frame fuer Frame zu springen.
+  const swappedInterval = (): [number, number] | null => {
+    if (intervalStartMs === null) return null
+    return intervalStartMs <= scrubMs ? [intervalStartMs, scrubMs] : [scrubMs, intervalStartMs]
+  }
+
+  const saveOffPathInterval = async () => {
+    const bounds = swappedInterval()
+    if (!activeVideo || !bounds || intervalSaving) return
+    const [start, end] = bounds
+    if (end - start < 200) {
+      setMessage('Ein Intervall muss mindestens 200 ms lang sein — scrubbe weiter, bevor du speicherst.')
+      return
+    }
+    setIntervalSaving(true)
+    try {
+      await createOffPathInterval(mission.id, activeVideo.video_id, {
+        start_ms: start,
+        end_ms: end,
+        note: intervalNote,
+        annotator: annotator.trim() || 'Simon',
+      })
+      setOffPathIntervals(await listOffPathIntervals(mission.id, activeVideo.video_id))
+      setIntervalStartMs(null)
+      setIntervalNote('')
+      setMessage(
+        `Off-Path-Intervall ${formatTimestamp(start)}–${formatTimestamp(end)} gespeichert. Geht als Vollnegativ-Frames ins Training.`,
+      )
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Intervall konnte nicht gespeichert werden')
+    } finally {
+      setIntervalSaving(false)
+    }
+  }
+
+  const removeOffPathInterval = async (intervalId: string) => {
+    if (!activeVideo || intervalSaving) return
+    setIntervalSaving(true)
+    try {
+      await deleteOffPathInterval(mission.id, activeVideo.video_id, intervalId)
+      setOffPathIntervals(current => current.filter(item => item.id !== intervalId))
+      setMessage('Intervall entfernt.')
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Intervall konnte nicht entfernt werden')
+    } finally {
+      setIntervalSaving(false)
+    }
+  }
+
+  const toggleFullyNotTraversable = async () => {
+    if (!activeVideo || fullyNotTraversableSaving) return
+    const next = !activeVideo.fully_not_traversable
+    setFullyNotTraversableSaving(true)
+    try {
+      await updateVideoFullyNotTraversable(mission.id, activeVideo.video_id, next)
+      setVideos(current =>
+        current.map(video => (video.video_id === activeVideo.video_id ? {...video, fully_not_traversable: next} : video)),
+      )
+      setMessage(
+        next
+          ? `${activeVideo.original_name} als komplett nicht befahrbar markiert — geht direkt als Trainingsbeispiel ein.`
+          : `Komplettlabel für ${activeVideo.original_name} entfernt.`,
+      )
+      await onMissionUpdated?.()
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'Komplettlabel konnte nicht gespeichert werden')
+    } finally {
+      setFullyNotTraversableSaving(false)
+    }
+  }
 
   const roiBands = (): LabelShape[] => {
     const bands: LabelShape[] = []
@@ -476,11 +687,16 @@ export default function GroundTruthLabeler({
 
   useEffect(() => {
     if (!activeVideo) return
-    const video = videoRef.current
-    if (video) {
-      video.pause()
-      const seek = timestampMs / 1000
-      if (Math.abs(video.currentTime - seek) > 0.0005) video.currentTime = seek
+    // Im Intervall-Modus scrubbt der Nutzer frei mit den nativen Videocontrols
+    // (siehe controls={intervalMode} unten) — ein erzwungener Sprung auf den
+    // Polygon-Frame wuerde dieses Scrubben staendig unterbrechen.
+    if (!intervalMode) {
+      const video = videoRef.current
+      if (video) {
+        video.pause()
+        const seek = timestampMs / 1000
+        if (Math.abs(video.currentTime - seek) > 0.0005) video.currentTime = seek
+      }
     }
     let cancelled = false
     setLoading(true)
@@ -548,8 +764,11 @@ export default function GroundTruthLabeler({
           setPoints(copyPoints(carried!.points))
           setTool('edit')
           setFullFrameNotTraversable(false)
+          // Erster Punkt gleich ausgewaehlt: Pfeiltasten koennen sofort
+          // nachjustieren, ohne dass zuerst ein Punkt angeklickt werden muss.
+          setSelectedVertex(0)
           setMessage(
-            'Das Polygon des vorherigen Frames bleibt als neue Vorlage liegen. Verschiebe die Punkte oder lösche es für diesen Frame.',
+            'Das Polygon des vorherigen Frames bleibt als neue Vorlage liegen. Punkt ausgewählt — Pfeiltasten justieren fein, oder ziehe direkt.',
           )
         } else {
           setPoints([])
@@ -571,14 +790,16 @@ export default function GroundTruthLabeler({
         setDirty(carriedIntoCurrentFrame)
         setPast(carriedIntoCurrentFrame ? [[]] : [])
         setFuture([])
-        setSelectedVertex(null)
+        // Weitergetragene Fläche behält ihren vorausgewählten Punkt (siehe
+        // oben) — jeder andere Fall startet ohne Auswahl.
+        if (!carriedIntoCurrentFrame) setSelectedVertex(null)
       })
       .catch(error => setMessage(error instanceof Error ? error.message : 'Ground Truth konnte nicht geladen werden'))
       .finally(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
     }
-  }, [mission.id, activeVideo?.video_id, frameIndex, timestampMs])
+  }, [mission.id, activeVideo?.video_id, frameIndex, timestampMs, intervalMode])
 
   const fullFrameMask = (): TerrainMask | null =>
     activeVideo ? {width: activeVideo.width, height: activeVideo.height, rle: [2, activeVideo.width * activeVideo.height]} : null
@@ -759,7 +980,10 @@ export default function GroundTruthLabeler({
     }
     const nextPosition = clamp(selectionPosition + direction, 0, Math.max(0, selectedFrames.length - 1))
     if (nextPosition === selectionPosition) return false
-    const carriedPoints = polygonForNextFrame(points, direction, carryForward)
+    // Im Shuffle-Modus liegt der naechste Frame meist in einem ANDEREN Video —
+    // eine Flaeche dorthin weiterzutragen ergaebe geometrisch keinen Sinn.
+    const effectiveCarryForward = carryForward && selectionMode !== 'shuffle'
+    const carriedPoints = polygonForNextFrame(points, direction, effectiveCarryForward)
     // Die Spur-ID reist mit: dieselbe Stelle behaelt ueber Frames hinweg ihre
     // Identitaet, damit spaeter ableitbar ist, wie sie sich veraendert hat.
     carryRef.current =
@@ -775,6 +999,40 @@ export default function GroundTruthLabeler({
         : null
     setSelectionPosition(nextPosition)
     return true
+  }
+
+  /** Ohne Umweg mehrere Positionen weiterspringen — kein Weitertragen, das
+   *  ergäbe über eine Lücke hinweg keinen Sinn. */
+  const jumpBy = (steps: number) => {
+    if (dirty) {
+      setMessage('Speichere die Änderung oder nutze Rückgängig, bevor du springst.')
+      return
+    }
+    const next = clamp(selectionPosition + steps, 0, Math.max(0, selectedFrames.length - 1))
+    if (next === selectionPosition) return
+    carryRef.current = null
+    setSelectionPosition(next)
+  }
+
+  const isResolved = (videoId: string | undefined, index: number) =>
+    !!videoId && summary.items.some(item => item.video_id === videoId && item.frame_index === index && item.status === 'confirmed')
+
+  /** Springt zum naechsten noch nicht bestaetigten Frame in der aktuellen
+   *  Auswahl — videouebergreifend im Shuffle-Modus. */
+  const jumpToUnresolved = (direction: 1 | -1) => {
+    if (dirty) {
+      setMessage('Speichere die Änderung oder nutze Rückgängig, bevor du springst.')
+      return
+    }
+    for (let position = selectionPosition + direction; position >= 0 && position < selectedFrames.length; position += direction) {
+      const videoId = selectionMode === 'shuffle' ? shuffleEntryAt(position)?.video_id : activeVideo?.video_id
+      if (!isResolved(videoId, selectedFrames[position])) {
+        carryRef.current = null
+        setSelectionPosition(position)
+        return
+      }
+    }
+    setMessage(direction === 1 ? 'Kein weiterer ungeklärter Frame danach.' : 'Kein ungeklärter Frame davor.')
   }
 
   /** Spur-ID der aktuellen Fläche — erzeugt sie beim ersten Zugriff und merkt
@@ -880,6 +1138,7 @@ export default function GroundTruthLabeler({
         status: nextStatus,
         annotator: annotator.trim() || 'Simon',
         notes,
+        label_mode: selectionMode === 'shuffle' ? 'shuffle' : 'linear',
       })
       setStatus(saved.status)
       setRevision(saved.revision)
@@ -1055,12 +1314,71 @@ export default function GroundTruthLabeler({
         event.preventDefault()
         if (event.shiftKey) redo()
         else undo()
-      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
         event.preventDefault()
         redo()
-      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        return
+      }
+      if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         removeSelectedPoint()
+        return
+      }
+      // Punkt-Feintuning per Pfeiltaste geht vor Frame-Navigation — sonst
+      // liesse sich ein ausgewählter Punkt nie mit den Pfeiltasten justieren.
+      if (selectedVertex !== null && tool === 'edit' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault()
+        const step = (event.shiftKey ? 0.01 : 0.0015) / zoom
+        const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0
+        const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
+        updatePoints(points.map((point, index) => (index === selectedVertex ? [clamp(point[0] + dx), clamp(point[1] + dy)] : point)))
+        return
+      }
+      if (event.key === 'ArrowRight' && !dirty) {
+        event.preventDefault()
+        navigate(1)
+        return
+      }
+      if (event.key === 'ArrowLeft' && !dirty) {
+        event.preventDefault()
+        navigate(-1)
+        return
+      }
+      if (event.key.toLowerCase() === 'u') {
+        event.preventDefault()
+        jumpToUnresolved(event.shiftKey ? -1 : 1)
+        return
+      }
+      if (event.key.toLowerCase() === 's' && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault()
+        void persist('draft')
+        return
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        void saveAndNext()
+        return
+      }
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setFullFrameNotTraversable(current => !current)
+        setDirty(true)
+        if (status === 'confirmed' || status === 'skipped') setStatus('draft')
+        return
+      }
+      if (event.key.toLowerCase() === 't') {
+        event.preventDefault()
+        setTrajectoryMode(current => !current)
+        return
+      }
+      if (['1', '2', '3', '4'].includes(event.key)) {
+        const chosen = classesOf('core')[Number(event.key) - 1]
+        if (chosen) {
+          event.preventDefault()
+          setShapeClass(chosen.class_id)
+        }
       }
     }
     window.addEventListener('keydown', keydown)
@@ -1084,6 +1402,27 @@ export default function GroundTruthLabeler({
   } as CSSProperties
   const transformStyle = {transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`} as CSSProperties
   const polygonPoints = points.map(point => point.join(',')).join(' ')
+  // Fortschritt innerhalb der aktuell gewählten Auswahl — videoübergreifend
+  // korrekt auch im Shuffle-Modus, weil isResolved je Position das richtige
+  // Video nachschlägt statt pauschal activeVideo anzunehmen.
+  const resolvedInSelection = selectedFrames.filter((index, position) =>
+    isResolved(selectionMode === 'shuffle' ? shuffleEntryAt(position)?.video_id : activeVideo.video_id, index),
+  ).length
+  const progressFraction = selectedFrames.length ? resolvedInSelection / selectedFrames.length : 0
+  // Durchsuchbare Historie: Suche greift auf Videoname, Bearbeiter und
+  // Framenummer zu, damit ein bestimmter Eintrag auch bei vielen hundert
+  // gespeicherten Masken schnell wiederzufinden ist.
+  const filteredHistoryItems = summary.items.filter(item => {
+    if (historyStatusFilter !== 'all' && item.status !== historyStatusFilter) return false
+    if (!historySearch.trim()) return true
+    const needle = historySearch.trim().toLowerCase()
+    const videoName = videos.find(candidate => candidate.video_id === item.video_id)?.original_name ?? ''
+    return (
+      videoName.toLowerCase().includes(needle) ||
+      item.annotator.toLowerCase().includes(needle) ||
+      String(item.frame_index + 1).includes(needle)
+    )
+  })
 
   return (
     <div className="labeling-page">
@@ -1134,9 +1473,31 @@ export default function GroundTruthLabeler({
                 +
               </button>
               <button onClick={resetViewport}>Ansicht zurücksetzen</button>
+              <button
+                className={intervalMode ? 'interval-mode-toggle active' : 'interval-mode-toggle'}
+                onClick={() => {
+                  setIntervalMode(current => !current)
+                  setIntervalStartMs(null)
+                }}
+              >
+                {intervalMode ? '✕ Intervall-Modus beenden' : 'Intervall-Modus: kein Weg im Video markieren'}
+              </button>
             </div>
-            <span>Mausrad zoomt · Hand verschiebt das Bild</span>
+            <span>
+              {intervalMode
+                ? 'Video frei scrubbar · Start und Ende eines wegfreien Abschnitts markieren'
+                : 'Mausrad zoomt · Hand verschiebt das Bild'}
+            </span>
           </div>
+          {activeCriticalFlag && (
+            <div className={`critical-flag-banner severity-${activeCriticalFlag.severity}`} role="alert">
+              <b>⚠ Als kritisch gemeldet · Stufe {activeCriticalFlag.severity}/5</b>
+              {activeCriticalFlag.note && <span>{activeCriticalFlag.note}</span>}
+              <button disabled={flagSaving} onClick={() => void removeCriticalFlag()}>
+                Meldung entfernen
+              </button>
+            </div>
+          )}
           <div className="labeling-stage-background">
             <div className="labeling-stage" ref={stageRef} style={frameStyle} onWheel={wheel}>
               <div className="labeling-transform" style={transformStyle}>
@@ -1146,8 +1507,12 @@ export default function GroundTruthLabeler({
                   preload="auto"
                   muted
                   playsInline
+                  controls={intervalMode}
+                  onTimeUpdate={event => {
+                    if (intervalMode) setScrubMs(Math.round(event.currentTarget.currentTime * 1000))
+                  }}
                   onLoadedMetadata={() => {
-                    if (videoRef.current) videoRef.current.currentTime = timestampMs / 1000
+                    if (videoRef.current && !intervalMode) videoRef.current.currentTime = timestampMs / 1000
                   }}
                 />
                 <canvas ref={aiMaskCanvasRef} className="ai-path-mask-layer" style={{opacity: aiMaskOpacity}} aria-hidden="true" />
@@ -1248,7 +1613,92 @@ export default function GroundTruthLabeler({
             <button disabled={selectionPosition >= selectedFrames.length - 1 || saving || dirty} onClick={() => navigate(1)}>
               Nächster Frame →
             </button>
+            <button disabled={dirty} title="Vorheriger ungeklärter Frame (U mit Shift)" onClick={() => jumpToUnresolved(-1)}>
+              ⏮ Vorheriger ungeklärter
+            </button>
+            <button disabled={dirty} title="Nächster ungeklärter Frame (U)" onClick={() => jumpToUnresolved(1)}>
+              Nächster ungeklärter ⏭
+            </button>
+            <button disabled={dirty || selectionPosition < 10} title="10 Positionen zurück" onClick={() => jumpBy(-10)}>
+              ⏪ −10
+            </button>
+            <button
+              disabled={dirty || selectionPosition >= selectedFrames.length - 10}
+              title="10 Positionen vor"
+              onClick={() => jumpBy(10)}
+            >
+              +10 ⏩
+            </button>
           </div>
+
+          {intervalMode && activeVideo && (
+            <div className="off-path-interval-panel">
+              <h3>Off-Path-Intervalle: kein Weg im Bild</h3>
+              <small>
+                Scrubbe im Video zum Anfang eines Abschnitts ohne jeden befahrbaren Frame, setze den Start, scrubbe zum Ende und speichere.
+                Der Abschnitt geht als Vollnegativ-Frames ins Training ein — die KI wird bestraft, wenn sie dort Wegfläche erkennt.
+              </small>
+              <div className="off-path-timeline">
+                <div className="off-path-timeline-track">
+                  {offPathIntervals.map(interval => {
+                    const durationMs = activeVideo.duration_seconds * 1000
+                    const left = (interval.start_ms / durationMs) * 100
+                    const width = ((interval.end_ms - interval.start_ms) / durationMs) * 100
+                    return (
+                      <div
+                        key={interval.id}
+                        className="off-path-interval-block"
+                        style={{left: `${left}%`, width: `${Math.max(0.3, width)}%`}}
+                        title={`${formatTimestamp(interval.start_ms)}–${formatTimestamp(interval.end_ms)}${interval.note ? ' · ' + interval.note : ''}`}
+                      />
+                    )
+                  })}
+                  {intervalStartMs !== null && (
+                    <div
+                      className="off-path-start-marker"
+                      style={{left: `${(intervalStartMs / (activeVideo.duration_seconds * 1000)) * 100}%`}}
+                    />
+                  )}
+                  <div className="off-path-scrub-marker" style={{left: `${(scrubMs / (activeVideo.duration_seconds * 1000)) * 100}%`}} />
+                </div>
+              </div>
+              <div className="off-path-interval-controls">
+                <span>Position: {formatTimestamp(scrubMs)}</span>
+                {intervalStartMs === null ? (
+                  <button onClick={() => setIntervalStartMs(scrubMs)}>Start hier setzen</button>
+                ) : (
+                  <>
+                    <span>Start: {formatTimestamp(intervalStartMs)}</span>
+                    <button onClick={() => setIntervalStartMs(null)}>Start verwerfen</button>
+                    <input
+                      value={intervalNote}
+                      maxLength={500}
+                      placeholder="Notiz (optional)"
+                      onChange={event => setIntervalNote(event.target.value)}
+                    />
+                    <button className="primary" disabled={intervalSaving} onClick={() => void saveOffPathInterval()}>
+                      {intervalSaving ? 'WIRD GESPEICHERT …' : 'Intervall speichern'}
+                    </button>
+                  </>
+                )}
+              </div>
+              {offPathIntervals.length > 0 && (
+                <ul className="off-path-interval-list">
+                  {offPathIntervals.map(interval => (
+                    <li key={interval.id}>
+                      <b>
+                        {formatTimestamp(interval.start_ms)}–{formatTimestamp(interval.end_ms)}
+                      </b>
+                      {interval.note && <span>{interval.note}</span>}
+                      <button className="danger" disabled={intervalSaving} onClick={() => void removeOffPathInterval(interval.id)}>
+                        Entfernen
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </section>
 
         <aside className="labeling-controls">
@@ -1257,7 +1707,7 @@ export default function GroundTruthLabeler({
             Originalvideo
             <select
               value={activeVideo.video_id}
-              disabled={dirty}
+              disabled={dirty || selectionMode === 'shuffle'}
               onChange={event => {
                 setActiveVideoId(event.target.value)
                 setSelectionPosition(0)
@@ -1271,9 +1721,11 @@ export default function GroundTruthLabeler({
               ))}
             </select>
             <small>
-              {activeVideo.terrain_category
-                ? `Terrainkategorie: ${terrainCategoryLabel(activeVideo.terrain_category)}`
-                : 'Terrainkategorie noch nicht gewählt. Alle Frames dieses Videos übernehmen dieses Label.'}
+              {selectionMode === 'shuffle'
+                ? 'Im Shuffle-Modus wechselt das Video automatisch mit jedem gemischten Frame.'
+                : activeVideo.terrain_category
+                  ? `Terrainkategorie: ${terrainCategoryLabel(activeVideo.terrain_category)}`
+                  : 'Terrainkategorie noch nicht gewählt. Alle Frames dieses Videos übernehmen dieses Label.'}
             </small>
           </label>
           <label>
@@ -1306,6 +1758,23 @@ export default function GroundTruthLabeler({
                 : 'Videokategorie geändert – zum Übernehmen speichern.'}
             </small>
           </div>
+          <div className="fully-not-traversable-panel">
+            <button
+              className={activeVideo.fully_not_traversable ? 'fully-not-traversable-toggle active' : 'fully-not-traversable-toggle'}
+              disabled={fullyNotTraversableSaving}
+              onClick={() => void toggleFullyNotTraversable()}
+            >
+              {fullyNotTraversableSaving
+                ? 'WIRD GESPEICHERT …'
+                : activeVideo.fully_not_traversable
+                  ? '✓ Ganzes Video: komplett nicht befahrbar'
+                  : 'Ganzes Video als komplett nicht befahrbar markieren'}
+            </button>
+            <small>
+              Für Videos, die von Anfang bis Ende keinen befahrbaren Grund zeigen. Kein Polygon nötig — das ganze Video geht direkt als
+              Trainingsbeispiel ein.
+            </small>
+          </div>
           <div className="sampling-tabs">
             <button
               className={selectionMode === 'stride' ? 'active' : ''}
@@ -1327,8 +1796,51 @@ export default function GroundTruthLabeler({
             >
               Anzahl Frames
             </button>
+            <button
+              className={selectionMode === 'shuffle' ? 'active' : ''}
+              disabled={dirty}
+              onClick={() => {
+                setSelectionMode('shuffle')
+                if (!shuffleSequence.length)
+                  setShuffleSequence(
+                    buildShuffleSelection(
+                      videos.map(video => ({video_id: video.video_id, total_frames: video.total_frames})),
+                      shuffleTotal,
+                    ),
+                  )
+                setSelectionPosition(0)
+              }}
+            >
+              Shuffle
+            </button>
           </div>
-          {selectionMode === 'stride' ? (
+          {selectionMode === 'shuffle' ? (
+            <div className="shuffle-mode-panel">
+              <label>
+                Anzahl gemischter Frames
+                <input
+                  aria-label="Anzahl gemischter Frames"
+                  type="number"
+                  min="1"
+                  max="2000"
+                  step="1"
+                  value={shuffleTotal}
+                  disabled={dirty}
+                  onChange={event => {
+                    const value = Number(event.target.value)
+                    if (Number.isFinite(value) && value >= 1) setShuffleTotal(Math.min(2000, Math.round(value)))
+                  }}
+                />
+              </label>
+              <button disabled={dirty} onClick={regenerateShuffle}>
+                🔀 Neu mischen
+              </button>
+              <small>
+                Zieht Frames quer über alle {videos.length} Videos der Mission und ordnet sie zufällig — gut geeignet für unabhängige
+                Review-Bewertung ohne zeitliche Nähe zwischen den Frames. Wird als eigener Arbeitsmodus mit jedem Label gespeichert.
+              </small>
+            </div>
+          ) : selectionMode === 'stride' ? (
             <>
               <label>
                 Jeden n-ten Frame
@@ -1394,6 +1906,20 @@ export default function GroundTruthLabeler({
             <span>
               {summary.counts.confirmed} bestätigt · {summary.counts.draft} Entwürfe · {summary.counts.skipped} übersprungen
             </span>
+            <span className={`label-mode-badge ${selectionMode === 'shuffle' ? 'shuffle' : 'linear'}`}>
+              Arbeitsmodus: {selectionMode === 'shuffle' ? 'Shuffle' : 'Linear'}
+            </span>
+          </div>
+          <div
+            className="progress-mini-map"
+            title={`${resolvedInSelection} von ${selectedFrames.length} Frames in dieser Auswahl bestätigt`}
+          >
+            <div className="progress-mini-map-track">
+              <div className="progress-mini-map-fill" style={{width: `${Math.round(progressFraction * 100)}%`}} />
+            </div>
+            <small>
+              {resolvedInSelection} / {selectedFrames.length} bestätigt ({Math.round(progressFraction * 100)} %)
+            </small>
           </div>
 
           <hr />
@@ -1730,7 +2256,78 @@ export default function GroundTruthLabeler({
                       : 'Noch nicht markiert'}
             </b>
             <span>{fullFrameNotTraversable ? 'Ganzes Bild als nicht befahrbar' : `${points.length} Polygonpunkte`}</span>
+            <span className={`label-mode-badge ${selectionMode === 'shuffle' ? 'shuffle' : 'linear'}`}>
+              {selectionMode === 'shuffle' ? 'Shuffle' : 'Linear'}
+            </span>
           </div>
+
+          <div className="critical-flag-panel">
+            <h3>Kritisch-Markierung</h3>
+            <small>Für Frames mit Fehleinschätzungsrisiko — direkt sichtbar im Workflow statt nur im Modellzentrum.</small>
+            <label>
+              Schweregrad · {flagSeverity}/5
+              <input
+                aria-label="Schweregrad der Kritisch-Meldung"
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={flagSeverity}
+                onChange={event => setFlagSeverity(+event.target.value)}
+              />
+            </label>
+            <input value={flagNote} maxLength={500} placeholder="Grund (optional)" onChange={event => setFlagNote(event.target.value)} />
+            <div className="critical-flag-actions">
+              <button disabled={flagSaving} onClick={() => void reportCriticalFlag()}>
+                {activeCriticalFlag ? 'Meldung aktualisieren' : 'Als kritisch melden'}
+              </button>
+              {activeCriticalFlag && (
+                <button className="danger" disabled={flagSaving} onClick={() => void removeCriticalFlag()}>
+                  Entfernen
+                </button>
+              )}
+            </div>
+            {criticalFlags.length > 0 && (
+              <small>
+                {criticalFlags.length} kritisch gemeldete{criticalFlags.length === 1 ? 'r Frame' : ' Frames'} in diesem Video.
+              </small>
+            )}
+          </div>
+
+          <details className="keyboard-shortcut-legend">
+            <summary>Tastaturkürzel</summary>
+            <ul>
+              <li>
+                <kbd>←</kbd>/<kbd>→</kbd> Frame vor/zurück
+              </li>
+              <li>
+                <kbd>U</kbd> / <kbd>Shift</kbd>+<kbd>U</kbd> nächster/vorheriger ungeklärter Frame
+              </li>
+              <li>Pfeiltasten bei ausgewähltem Punkt (Werkzeug „Punkt auswählen“) — feines Nachjustieren, mit Shift größere Schritte</li>
+              <li>
+                <kbd>S</kbd> Entwurf speichern
+              </li>
+              <li>
+                <kbd>Enter</kbd> bestätigen &amp; nächster Frame
+              </li>
+              <li>
+                <kbd>F</kbd> Ganzes Bild nicht befahrbar umschalten
+              </li>
+              <li>
+                <kbd>T</kbd> Trajektorie-Modus umschalten
+              </li>
+              <li>
+                <kbd>1</kbd>–<kbd>4</kbd> Kernklasse wählen
+              </li>
+              <li>
+                <kbd>Entf</kbd> ausgewählten Punkt entfernen
+              </li>
+              <li>
+                <kbd>Strg</kbd>+<kbd>Z</kbd> / <kbd>Strg</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> Undo/Redo
+              </li>
+            </ul>
+          </details>
+
           <label>
             Bearbeiter
             <input
@@ -1786,28 +2383,56 @@ export default function GroundTruthLabeler({
           </div>
           <b>{summary.counts.total} Einträge</b>
         </div>
+        <div className="history-filter-bar">
+          <input
+            aria-label="Historie durchsuchen"
+            value={historySearch}
+            placeholder="Suche nach Video, Bearbeiter oder Framenummer …"
+            onChange={event => setHistorySearch(event.target.value)}
+          />
+          <select
+            aria-label="Status filtern"
+            value={historyStatusFilter}
+            onChange={event => setHistoryStatusFilter(event.target.value as GroundTruthStatus | 'all')}
+          >
+            <option value="all">Alle Status</option>
+            <option value="confirmed">Bestätigt</option>
+            <option value="draft">Entwurf</option>
+            <option value="skipped">Übersprungen</option>
+          </select>
+          <small>
+            {filteredHistoryItems.length} von {summary.items.length} Einträgen
+          </small>
+        </div>
         {summary.items.length ? (
-          <div className="saved-mask-list">
-            {summary.items.map(item => {
-              const video = videos.find(candidate => candidate.video_id === item.video_id)
-              return (
-                <button
-                  key={`${item.video_id}-${item.frame_index}`}
-                  className={item.video_id === activeVideo.video_id && item.frame_index === frameIndex ? 'active' : ''}
-                  onClick={() => openSavedMask(item)}
-                >
-                  <span className={`mask-status ${item.status}`}>
-                    {item.status === 'confirmed' ? 'BESTÄTIGT' : item.status === 'skipped' ? 'ÜBERSPRUNGEN' : 'ENTWURF'}
-                  </span>
-                  <b>Frame {item.frame_index + 1}</b>
-                  <span>{video?.original_name ?? item.video_id}</span>
-                  <small>
-                    {item.statistics.polygon_count ?? 0} Polygon · {item.statistics.point_count ?? 0} Punkte · Revision {item.revision}
-                  </small>
-                </button>
-              )
-            })}
-          </div>
+          filteredHistoryItems.length ? (
+            <div className="saved-mask-list">
+              {filteredHistoryItems.map(item => {
+                const video = videos.find(candidate => candidate.video_id === item.video_id)
+                return (
+                  <button
+                    key={`${item.video_id}-${item.frame_index}`}
+                    className={item.video_id === activeVideo.video_id && item.frame_index === frameIndex ? 'active' : ''}
+                    onClick={() => openSavedMask(item)}
+                  >
+                    <span className={`mask-status ${item.status}`}>
+                      {item.status === 'confirmed' ? 'BESTÄTIGT' : item.status === 'skipped' ? 'ÜBERSPRUNGEN' : 'ENTWURF'}
+                    </span>
+                    <b>Frame {item.frame_index + 1}</b>
+                    <span>{video?.original_name ?? item.video_id}</span>
+                    <small>
+                      {item.statistics.polygon_count ?? 0} Polygon · {item.statistics.point_count ?? 0} Punkte · Revision {item.revision}
+                    </small>
+                    <span className={`label-mode-badge ${item.label_mode === 'shuffle' ? 'shuffle' : 'linear'}`}>
+                      {item.label_mode === 'shuffle' ? 'Shuffle' : 'Linear'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="empty saved-mask-empty">Keine Einträge für diese Suche/diesen Filter.</div>
+          )
         ) : (
           <div className="empty saved-mask-empty">
             Noch keine Polygonmasken gespeichert. Sobald du einen Entwurf speicherst oder ein Polygon bestätigst, erscheint es hier.

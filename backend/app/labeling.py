@@ -36,6 +36,7 @@ def probe_labeling_video(mission: MissionRecord, mission_dir: Path, video_id: st
         "height": height,
         "duration_seconds": round(total_frames / fps, 6),
         "terrain_category": video.terrain_category,
+        "fully_not_traversable": video.fully_not_traversable,
     }
 
 
