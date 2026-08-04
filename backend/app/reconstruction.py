@@ -122,8 +122,14 @@ def _anchor(points, target_length):
         # sequence but distribute forward progress across visually tracked steps.
         points[:, 1] += np.linspace(0, len(points) - 1, len(points))
         vector = points[-1]
+    # Der Endpunkt muss auf der Vorwaertsachse landen (seitlich 0), denn danach
+    # skaliert Zeile darunter die Vorwaertskomponente auf die bekannte
+    # Routenlaenge. Das Vorzeichen war bis 04.08.2026 gedreht: bei einem
+    # Endpunkt, der nicht ohnehin geradeaus lag, blieb ein grosser seitlicher
+    # Versatz stehen — bei 250 m Route bis zu 857 m. Der alte Test traf nur den
+    # Fall angle == 0, in dem die Drehung gar nichts tut.
     angle = math.atan2(vector[0], vector[1])
-    c, s = math.cos(-angle), math.sin(-angle)
+    c, s = math.cos(angle), math.sin(angle)
     rotation = np.array([[c, -s], [s, c]])
     aligned = points @ rotation.T
     aligned *= target_length / max(1e-6, aligned[-1, 1])

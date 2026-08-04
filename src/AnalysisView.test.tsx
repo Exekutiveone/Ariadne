@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {expect, test, vi} from 'vitest'
 
 vi.mock('react-leaflet', () => ({
@@ -263,4 +263,35 @@ test('shows the graded AI overlay as its own player mode with legend and safety 
   expect(screen.getByText(/Modell path-run-1/)).toBeInTheDocument()
   // Der Vorbehalt muss auch in der Statuszeile ueber dem Video stehen.
   expect(screen.getByText(/KI-ABSTUFUNG · 42 % WEG · KEINE FAHRFREIGABE/)).toBeInTheDocument()
+})
+
+test('the metric row counts what is actually there, not what is hoped for', async () => {
+  mount()
+
+  const value = (label: string) => screen.getByText(label).parentElement?.querySelector('b')?.textContent
+  // Die Zusammenfassung kommt asynchron nach; solange steht dort ehrlich 0
+  // statt eines Platzhalters.
+  expect(value('Bestätigte Ground Truths')).toBe('0')
+  await waitFor(() => expect(value('Bestätigte Ground Truths')).toBe('1'))
+  expect(value('Gespeicherte Entwürfe')).toBe('0')
+  expect(value('Terrainframes im Video')).toBe('1')
+})
+
+test('the ARGUS width is shown together with where the number comes from', () => {
+  mount()
+
+  // 0,35 m Fahrzeug plus zweimal 0,20 m Zuschlag. Die Quelle steht daneben,
+  // damit eine dokumentierte Annahme nicht wie eine Messung aussieht.
+  expect(screen.getByText('Benötigte ARGUS-Breite').parentElement?.querySelector('b')?.textContent).toBe('0,75 m')
+  fireEvent.click(screen.getByRole('button', {name: 'Befahrbarkeit'}))
+  expect(screen.getByText(/Dokumentierte Arbeitsannahme/)).toBeInTheDocument()
+})
+
+test('every player mode keeps the no-clearance disclaimer on screen', () => {
+  mount()
+
+  for (const mode of ['Original', 'Boden', 'Befahrbarkeit', 'KI-Abstufung', 'Eigene Labels']) {
+    fireEvent.click(screen.getByRole('button', {name: mode}))
+    expect(screen.getByText('Keine Fahrfreigabe'), `fehlt im Modus ${mode}`).toBeInTheDocument()
+  }
 })
