@@ -1,6 +1,5 @@
 import type {
   Analysis,
-  CorridorCheck,
   CorridorId,
   GlobalModelDashboardData,
   GlobalPathModelResult,
@@ -141,25 +140,6 @@ export async function updateRegistryRun(
     body = await r.json()
   } catch {}
   if (!r.ok) throw new Error(body.detail || 'Run konnte nicht aktualisiert werden')
-  return body
-}
-export async function getCorridorCheck(
-  missionId: string,
-  videoId: string,
-  frameIndex: number,
-  calibration: {vehicle_width_m: number; clearance_m: number; ground_width_at_bottom_m: number},
-): Promise<CorridorCheck> {
-  const params = new URLSearchParams({
-    vehicle_width_m: String(calibration.vehicle_width_m),
-    clearance_m: String(calibration.clearance_m),
-    ground_width_at_bottom_m: String(calibration.ground_width_at_bottom_m),
-  })
-  const r = await fetch(`/api/v1/corridors/${missionId}/${videoId}/${frameIndex}?${params}`)
-  let body: any = {}
-  try {
-    body = await r.json()
-  } catch {}
-  if (!r.ok) throw new Error(body.detail || 'Korridorprüfung fehlgeschlagen')
   return body
 }
 export async function getTerrainDashboard(): Promise<TerrainDashboardData> {
@@ -433,8 +413,20 @@ export async function trainGlobalPathModel(): Promise<GlobalPathModelResult> {
   if (!r.ok) throw new Error(body.detail || 'Globales Wegmodell konnte nicht trainiert werden')
   return body
 }
-export async function predictGlobalPathFrame(missionId: string, videoId: string, frameIndex: number): Promise<PathPrediction> {
-  const r = await fetch(`/api/v1/path-model/global/predict/${missionId}/${videoId}/${frameIndex}`)
+export async function predictGlobalPathFrame(
+  missionId: string,
+  videoId: string,
+  frameIndex: number,
+  calibration: {vehicle_width_m: number; clearance_m: number; ground_width_at_bottom_m: number},
+): Promise<PathPrediction> {
+  // Die Korridorprüfung hängt an derselben Antwort: als eigener Aufruf lief die
+  // Inferenz zweimal über denselben Frame.
+  const params = new URLSearchParams({
+    vehicle_width_m: String(calibration.vehicle_width_m),
+    clearance_m: String(calibration.clearance_m),
+    ground_width_at_bottom_m: String(calibration.ground_width_at_bottom_m),
+  })
+  const r = await fetch(`/api/v1/path-model/global/predict/${missionId}/${videoId}/${frameIndex}?${params}`)
   let body: any = {}
   try {
     body = await r.json()

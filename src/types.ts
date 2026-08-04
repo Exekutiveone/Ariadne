@@ -250,6 +250,8 @@ export type PathPrediction = {
   path_fraction: number
   mean_separation: number
   confidence_note: string
+  /** Korridorprüfung desselben Frames — kommt mit, statt eine zweite Inferenz zu kosten. */
+  corridors?: CorridorCheck
   source: string
   evaluation?: {
     annotation_status: GroundTruthStatus

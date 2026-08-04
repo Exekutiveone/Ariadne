@@ -226,7 +226,23 @@ def train_global_path_model(store):
         raise
 
 
-def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index: int):
+def predict_global_path_frame(
+    store,
+    mission_id: str,
+    video_id: str,
+    frame_index: int,
+    *,
+    vehicle_width_m: float = DEFAULT_VEHICLE_WIDTH_M,
+    clearance_m: float = DEFAULT_CLEARANCE_M,
+    ground_width_at_bottom_m: float = DEFAULT_GROUND_WIDTH_AT_BOTTOM_M,
+):
+    """Vorhersage samt Korridorpruefung fuer genau einen Frame.
+
+    Die Korridore haengen mit in der Antwort, weil sie ohnehin auf dieser Maske
+    rechnen. Als eigener Endpunkt kostete das eine zweite, identische Inferenz
+    ueber denselben Frame — gemessen 0,33 s, die der Player bei jedem
+    Frame-Wechsel doppelt bezahlt hat.
+    """
     mission = store.get(mission_id)
     if not mission:
         raise LookupError("Mission nicht gefunden")
@@ -274,30 +290,31 @@ def predict_global_path_frame(store, mission_id: str, video_id: str, frame_index
                 }
         except (OSError, ValueError, KeyError, TypeError):
             pass
+    response["corridors"] = _corridors_from_prediction(
+        response, mission_id, video_id, frame_index, vehicle_width_m, clearance_m, ground_width_at_bottom_m
+    )
     return response
 
 
-def corridor_check_global_frame(
-    store,
+def _corridors_from_prediction(
+    prediction: dict,
     mission_id: str,
     video_id: str,
     frame_index: int,
-    *,
-    vehicle_width_m: float = DEFAULT_VEHICLE_WIDTH_M,
-    clearance_m: float = DEFAULT_CLEARANCE_M,
-    ground_width_at_bottom_m: float = DEFAULT_GROUND_WIDTH_AT_BOTTOM_M,
+    vehicle_width_m: float,
+    clearance_m: float,
+    ground_width_at_bottom_m: float,
 ):
-    """A.3/A.4 auf der Vorhersage des globalen Wegmodells.
+    """A.3/A.4 auf einer bereits berechneten Vorhersage.
 
-    Die Geometrie in `corridor` kennt weder Modell noch Mission; hier wird nur
-    die vorhergesagte Maske dekodiert und weitergereicht.
+    Nimmt die fertige Antwort statt Mission und Frame, damit die Modellinferenz
+    nicht ein zweites Mal ueber denselben Frame laeuft. Die Geometrie in
+    `corridor` kennt weder Modell noch Mission; hier werden nur die Masken
+    dekodiert und weitergereicht.
     """
-    prediction = predict_global_path_frame(store, mission_id, video_id, frame_index)
-    mask = decode_rle(prediction["mask"])
-    grade_mask = decode_rle(prediction["grade_mask"]) if prediction.get("grade_mask") else None
     result = evaluate_corridors(
-        mask,
-        grade_mask,
+        decode_rle(prediction["mask"]),
+        decode_rle(prediction["grade_mask"]) if prediction.get("grade_mask") else None,
         vehicle_width_m=vehicle_width_m,
         clearance_m=clearance_m,
         ground_width_at_bottom_m=ground_width_at_bottom_m,
@@ -312,3 +329,31 @@ def corridor_check_global_frame(
         "path_fraction": prediction["path_fraction"],
         "source": "deterministic_geometry_on_global_model_mask",
     }
+
+
+def corridor_check_global_frame(
+    store,
+    mission_id: str,
+    video_id: str,
+    frame_index: int,
+    *,
+    vehicle_width_m: float = DEFAULT_VEHICLE_WIDTH_M,
+    clearance_m: float = DEFAULT_CLEARANCE_M,
+    ground_width_at_bottom_m: float = DEFAULT_GROUND_WIDTH_AT_BOTTOM_M,
+):
+    """Korridorpruefung als eigenstaendiger Aufruf, fuer Skripte und Batchlaeufe.
+
+    Die Oberflaeche nimmt diesen Weg bewusst nicht: sie holt die Korridore
+    zusammen mit der Vorhersage ueber `predict_global_path_frame`, sonst liefe
+    dieselbe Inferenz zweimal ueber denselben Frame.
+    """
+    prediction = predict_global_path_frame(
+        store,
+        mission_id,
+        video_id,
+        frame_index,
+        vehicle_width_m=vehicle_width_m,
+        clearance_m=clearance_m,
+        ground_width_at_bottom_m=ground_width_at_bottom_m,
+    )
+    return prediction["corridors"]

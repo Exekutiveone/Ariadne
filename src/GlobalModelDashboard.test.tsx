@@ -143,6 +143,9 @@ vi.mock('./api', () => ({
     mean_separation: 0.2,
     confidence_note: '',
     source: 'global',
+    // Die Korridorpruefung haengt an derselben Antwort, statt eine zweite
+    // Inferenz ueber denselben Frame zu kosten.
+    corridors: corridorCheck,
   }),
   startGlobalVideoAnalysis: vi.fn(),
   trainGlobalPathModel: vi.fn(),
@@ -159,7 +162,6 @@ vi.mock('./api', () => ({
   }),
   trainTerrainModel: vi.fn(),
   predictTerrainVideo: vi.fn(),
-  getCorridorCheck: async () => corridorCheck,
   getTrajectory: async () => null,
   saveTrajectory: (...args: unknown[]) => saveTrajectory(...(args as [])),
   deleteTrajectory: vi.fn(),

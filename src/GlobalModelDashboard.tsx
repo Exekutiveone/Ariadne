@@ -106,12 +106,14 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
   const activeVideo = videos.find(item => item.video_id === selectedVideoId) ?? videos[0]
   const [planning, setPlanning] = useState(false)
   const [trajectoryNote, setTrajectoryNote] = useState('')
+  // Die Korridore kommen aus derselben Antwort wie die Maske — ein zweiter
+  // Aufruf haette dieselbe Inferenz noch einmal ueber den Frame laufen lassen.
   const planner = useCorridorPlanner(
     selectedMissionId,
     activeVideo?.video_id ?? '',
     frameIndex,
     activeVideo ? Math.round((frameIndex / activeVideo.fps) * 1000) : 0,
-    Boolean(activeVideo) && !playing,
+    prediction?.corridors ?? null,
   )
 
   useEffect(() => {
@@ -185,7 +187,7 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     }
     let cancelled = false
     setPredictionLoading(true)
-    void predictGlobalPathFrame(selectedMissionId, activeVideo.video_id, frameIndex)
+    void predictGlobalPathFrame(selectedMissionId, activeVideo.video_id, frameIndex, planner.calibration)
       .then(result => {
         if (!cancelled) setPrediction(result)
       })
@@ -198,7 +200,18 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     return () => {
       cancelled = true
     }
-  }, [data?.model?.run_id, selectedMissionId, activeVideo?.video_id, frameIndex, analysisResult?.model_run_id, needsGradePreview, playing])
+  }, [
+    data?.model?.run_id,
+    selectedMissionId,
+    activeVideo?.video_id,
+    frameIndex,
+    analysisResult?.model_run_id,
+    needsGradePreview,
+    playing,
+    // Aendert sich die Kalibrierung, muessen die Korridore neu berechnet werden;
+    // sie haengen an derselben Antwort wie die Maske.
+    planner.calibration,
+  ])
 
   useEffect(() => {
     if (!videoRef.current) return

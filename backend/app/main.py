@@ -99,9 +99,24 @@ def global_model_evidence(evidence_name: str):
 
 
 @app.get("/api/v1/path-model/global/predict/{mission_id}/{video_id}/{frame_index}")
-def global_model_predict(mission_id: str, video_id: str, frame_index: int):
+def global_model_predict(
+    mission_id: str,
+    video_id: str,
+    frame_index: int,
+    vehicle_width_m: float = Query(default=DEFAULT_VEHICLE_WIDTH_M, gt=0, le=10),
+    clearance_m: float = Query(default=DEFAULT_CLEARANCE_M, ge=0, le=5),
+    ground_width_at_bottom_m: float = Query(default=DEFAULT_GROUND_WIDTH_AT_BOTTOM_M, gt=0, le=100),
+):
     try:
-        return predict_global_path_frame(store, mission_id, video_id, frame_index)
+        return predict_global_path_frame(
+            store,
+            mission_id,
+            video_id,
+            frame_index,
+            vehicle_width_m=vehicle_width_m,
+            clearance_m=clearance_m,
+            ground_width_at_bottom_m=ground_width_at_bottom_m,
+        )
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:

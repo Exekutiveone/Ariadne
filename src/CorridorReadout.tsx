@@ -23,8 +23,6 @@ export default function CorridorReadout({
     check,
     stored,
     draft,
-    error,
-    loading,
     saving,
     message,
     calibration,
@@ -90,12 +88,8 @@ export default function CorridorReadout({
         </label>
       </div>
 
-      {error ? (
-        <div className="labeling-message" role="status">
-          {error}
-        </div>
-      ) : !check ? (
-        <div className="empty">{loading ? 'Korridore werden geprüft …' : 'Noch keine Korridorprüfung.'}</div>
+      {!check ? (
+        <div className="empty">Die Korridore kommen mit der Frame-Vorhersage; wähle einen Frame.</div>
       ) : (
         <>
           <div className="corridor-status-grid">
