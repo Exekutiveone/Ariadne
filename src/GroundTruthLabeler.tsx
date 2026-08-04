@@ -3,7 +3,9 @@ import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as Rea
 import {
   deleteTrajectory,
   getGroundTruth,
+  getRoiProfile,
   getTrajectory,
+  saveRoiProfile,
   saveTrajectory,
   getLabelingVideos,
   getPathModel,
@@ -31,11 +33,18 @@ import type {
   PathModelResult,
   PathPrediction,
   PathTrainingJob,
+  RoiProfile,
   StoredTrajectory,
   TerrainMask,
 } from './types'
 
 type Tool = 'add' | 'edit' | 'move' | 'pan'
+
+/** Stabile Kennung einer Stelle ueber Frames hinweg. */
+const newTrackingId = () => `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+
+const samePoints = (a: NormalizedPoint[], b: NormalizedPoint[]) =>
+  a.length === b.length && a.every((point, index) => Math.abs(point[0] - b[index][0]) < 1e-9 && Math.abs(point[1] - b[index][1]) < 1e-9)
 type Drag =
   | {kind: 'vertex'; index: number; before: NormalizedPoint[]}
   | {kind: 'polygon'; origin: NormalizedPoint; before: NormalizedPoint[]}
@@ -189,12 +198,27 @@ export default function GroundTruthLabeler({
   const [trajectoryMode, setTrajectoryMode] = useState(false)
   const [trajectorySaving, setTrajectorySaving] = useState(false)
   const {classesOf, describe, error: ontologyError} = useLabelOntology()
+  const [roiProfile, setRoiProfile] = useState<RoiProfile | null>(null)
+  const [roiTop, setRoiTop] = useState(0)
+  const [roiBottom, setRoiBottom] = useState(0)
+  const [roiSaving, setRoiSaving] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const aiMaskCanvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<Drag | null>(null)
-  const carryRef = useRef<{videoId: string; frameIndex: number; points: NormalizedPoint[]} | null>(null)
+  // Identitaet der gerade bearbeiteten Stelle und ihr Zustand beim Uebernehmen.
+  // Aus dem Vergleich entsteht "unveraendert uebernommen" vs. "angepasst".
+  const trackingIdRef = useRef<string | null>(null)
+  const carriedOriginRef = useRef<{points: NormalizedPoint[]; fromFrame: number} | null>(null)
+  const carryRef = useRef<{
+    videoId: string
+    frameIndex: number
+    points: NormalizedPoint[]
+    trackingId: string
+    fromFrame: number
+    classId: string
+  } | null>(null)
 
   const activeVideo = videos.find(video => video.video_id === activeVideoId) ?? videos[0]
   const selectedFrames = useMemo(
@@ -301,6 +325,78 @@ export default function GroundTruthLabeler({
     }
   }, [mission.id, activeVideo?.video_id, frameIndex])
 
+  // Profil des Videos laden; ohne gespeichertes Profil dienen die Erfahrungs-
+  // werte des Backends als Startpunkt der Regler.
+  useEffect(() => {
+    if (!activeVideo) return
+    let cancelled = false
+    void getRoiProfile(mission.id, activeVideo.video_id)
+      .then(result => {
+        if (cancelled) return
+        setRoiProfile(result)
+        setRoiTop(result.top_ignore_fraction ?? result.suggested?.top_ignore_fraction ?? 0)
+        setRoiBottom(result.bottom_ignore_fraction ?? result.suggested?.bottom_ignore_fraction ?? 0)
+      })
+      .catch(() => {
+        if (!cancelled) setRoiProfile(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mission.id, activeVideo?.video_id])
+
+  const roiBands = (): LabelShape[] => {
+    const bands: LabelShape[] = []
+    const make = (kind: 'top' | 'bottom', fraction: number): LabelShape => {
+      const [from, to] = kind === 'top' ? [0, fraction] : [1 - fraction, 1]
+      return {
+        id: `roi-${kind}`,
+        class_id: 'roi_ignore',
+        points: [
+          [0, from],
+          [1, from],
+          [1, to],
+          [0, to],
+        ],
+        certainty: 'certain',
+        origin: 'manual',
+        hard_negative: false,
+        note: `${kind === 'top' ? 'Oberer' : 'Unterer'} Bildrand, ${Math.round(fraction * 100)} % ignoriert`,
+      }
+    }
+    if (roiTop > 0) bands.push(make('top', roiTop))
+    if (roiBottom > 0) bands.push(make('bottom', roiBottom))
+    return bands
+  }
+
+  const applyRoiBands = () => {
+    const bands = roiBands()
+    if (!bands.length) return
+    setShapes(current => [...current.filter(item => !item.id.startsWith('roi-')), ...bands])
+    setDirty(true)
+    setMessage(`Auswertungsbereich auf Frame ${frameIndex + 1} gelegt. Er gilt erst nach dem Speichern.`)
+  }
+
+  const persistRoiProfile = async () => {
+    if (!activeVideo || roiSaving) return
+    setRoiSaving(true)
+    try {
+      const saved = await saveRoiProfile(mission.id, activeVideo.video_id, {
+        top_ignore_fraction: roiTop > 0 ? roiTop : null,
+        bottom_ignore_fraction: roiBottom > 0 ? roiBottom : null,
+        roi: roiBands(),
+        note: '',
+        annotator: annotator.trim() || 'Simon',
+      })
+      setRoiProfile(saved)
+      setMessage(`ROI-Profil für ${activeVideo.original_name} gespeichert (Revision ${saved.revision}).`)
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : 'ROI-Profil konnte nicht gespeichert werden')
+    } finally {
+      setRoiSaving(false)
+    }
+  }
+
   const persistTrajectory = async () => {
     if (!activeVideo || trajectorySaving) return
     if (trajectory.length < 2) {
@@ -403,9 +499,16 @@ export default function GroundTruthLabeler({
           origin: item.origin ?? 'manual',
           hard_negative: item.hard_negative ?? false,
           note: item.note ?? '',
+          tracking_id: item.tracking_id ?? null,
+          carried_from_frame: item.carried_from_frame ?? null,
+          edit: item.edit ?? 'new',
         }))
         setShapes(stored)
         setEditingShapeId(null)
+        if (!carryRef.current || carryRef.current.frameIndex !== frameIndex) {
+          trackingIdRef.current = null
+          carriedOriginRef.current = null
+        }
         setShapeNote('')
         setShapeHardNegative(false)
         const polygon = stored.length === 1 ? stored[0].points : undefined
@@ -439,6 +542,9 @@ export default function GroundTruthLabeler({
           setFullFrameNotTraversable(true)
           setMessage('Gespeichertes Vollbild-Label geladen: Dieser Frame ist komplett nicht befahrbar.')
         } else if (carriedIntoCurrentFrame) {
+          trackingIdRef.current = carried!.trackingId
+          carriedOriginRef.current = {points: copyPoints(carried!.points), fromFrame: carried!.fromFrame}
+          setShapeClass(carried!.classId)
           setPoints(copyPoints(carried!.points))
           setTool('edit')
           setFullFrameNotTraversable(false)
@@ -654,21 +760,48 @@ export default function GroundTruthLabeler({
     const nextPosition = clamp(selectionPosition + direction, 0, Math.max(0, selectedFrames.length - 1))
     if (nextPosition === selectionPosition) return false
     const carriedPoints = polygonForNextFrame(points, direction, carryForward)
+    // Die Spur-ID reist mit: dieselbe Stelle behaelt ueber Frames hinweg ihre
+    // Identitaet, damit spaeter ableitbar ist, wie sie sich veraendert hat.
     carryRef.current =
-      carriedPoints && activeVideo ? {videoId: activeVideo.video_id, frameIndex: selectedFrames[nextPosition], points: carriedPoints} : null
+      carriedPoints && activeVideo
+        ? {
+            videoId: activeVideo.video_id,
+            frameIndex: selectedFrames[nextPosition],
+            points: carriedPoints,
+            trackingId: ensureTrackingId(),
+            fromFrame: frameIndex,
+            classId: shapeClass,
+          }
+        : null
     setSelectionPosition(nextPosition)
     return true
   }
 
-  const currentShape = (): LabelShape => ({
-    id: editingShapeId ?? shapeId(shapeClass, shapes.length),
-    class_id: shapeClass,
-    points: copyPoints(points),
-    certainty: shapeCertainty,
-    origin: 'manual',
-    hard_negative: shapeHardNegative,
-    note: shapeNote,
-  })
+  /** Spur-ID der aktuellen Fläche — erzeugt sie beim ersten Zugriff und merkt
+   *  sie. Ohne das Merken bekäme dieselbe Fläche beim Speichern und beim
+   *  Weitertragen zwei verschiedene IDs, und die Verkettung bräche auseinander. */
+  const ensureTrackingId = () => {
+    if (!trackingIdRef.current) trackingIdRef.current = newTrackingId()
+    return trackingIdRef.current
+  }
+
+  const currentShape = (): LabelShape => {
+    const carried = carriedOriginRef.current
+    return {
+      id: editingShapeId ?? shapeId(shapeClass, shapes.length),
+      class_id: shapeClass,
+      points: copyPoints(points),
+      certainty: shapeCertainty,
+      origin: 'manual',
+      hard_negative: shapeHardNegative,
+      note: shapeNote,
+      tracking_id: ensureTrackingId(),
+      carried_from_frame: carried?.fromFrame ?? null,
+      // Unveraendert uebernommen oder nachgezogen? Genau die Stellen, an denen
+      // von Hand nachgebessert wurde, sind die schwierigen im Video.
+      edit: !carried ? 'new' : samePoints(carried.points, points) ? 'carried_unchanged' : 'carried_adjusted',
+    }
+  }
 
   /** Aktuelle Fläche in die Liste übernehmen und die Werkzeuge freimachen. */
   const commitShape = () => {
@@ -682,6 +815,8 @@ export default function GroundTruthLabeler({
     setEditingShapeId(null)
     setShapeNote('')
     setShapeHardNegative(false)
+    trackingIdRef.current = null
+    carriedOriginRef.current = null
     setTool('add')
     setDirty(true)
     setMessage(`${describe(shape.class_id).label} übernommen. Nächste Fläche kann gezeichnet werden.`)
@@ -700,6 +835,11 @@ export default function GroundTruthLabeler({
     setShapeHardNegative(shape.hard_negative)
     setShapeNote(shape.note)
     setEditingShapeId(shape.id)
+    trackingIdRef.current = shape.tracking_id ?? null
+    // Eine erneut geoeffnete, bereits gespeicherte Flaeche gilt als korrigiert,
+    // sobald sie veraendert wird — nicht als neu gezeichnet.
+    carriedOriginRef.current =
+      shape.carried_from_frame != null ? {points: copyPoints(shape.points), fromFrame: shape.carried_from_frame} : null
     setTool('edit')
     setMessage(`${describe(shape.class_id).label} zum Bearbeiten geladen.`)
   }
@@ -1438,6 +1578,52 @@ export default function GroundTruthLabeler({
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="roi-profile-panel">
+            <h2>Auswertungsbereich</h2>
+            <small>
+              Schneidet das Bild nicht zu — es sagt nur, welche Pixel im Training zählen. Das Original bleibt vollständig erhalten.
+            </small>
+            <div className="roi-band-controls">
+              <label>
+                Oben ignorieren · {Math.round(roiTop * 100)} %
+                <input
+                  aria-label="Oberes Band ignorieren"
+                  type="range"
+                  min="0"
+                  max="0.6"
+                  step="0.01"
+                  value={roiTop}
+                  onChange={event => setRoiTop(+event.target.value)}
+                />
+              </label>
+              <label>
+                Unten ignorieren · {Math.round(roiBottom * 100)} %
+                <input
+                  aria-label="Unteres Band ignorieren"
+                  type="range"
+                  min="0"
+                  max="0.4"
+                  step="0.01"
+                  value={roiBottom}
+                  onChange={event => setRoiBottom(+event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="roi-actions">
+              <button disabled={roiTop <= 0 && roiBottom <= 0} onClick={applyRoiBands}>
+                Bänder auf diesen Frame legen
+              </button>
+              <button disabled={roiSaving} onClick={() => void persistRoiProfile()}>
+                {roiSaving ? 'PROFIL WIRD GESPEICHERT …' : 'Als Videoprofil speichern'}
+              </button>
+            </div>
+            <small>
+              {roiProfile && roiProfile.revision > 0
+                ? `Videoprofil gespeichert (Revision ${roiProfile.revision}): oben ${Math.round((roiProfile.top_ignore_fraction ?? 0) * 100)} %, unten ${Math.round((roiProfile.bottom_ignore_fraction ?? 0) * 100)} %. Es gilt als Vorschlag — was zählt, steht am Frame.`
+                : 'Für dieses Video ist noch kein Profil gespeichert. Steht die Kamera fest, lohnt es sich: dann gilt derselbe Bereich in jedem Frame.'}
+            </small>
           </div>
 
           <div className="manual-trajectory-panel">

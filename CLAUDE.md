@@ -33,6 +33,12 @@ werden dem Nutzer auf Deutsch angezeigt. Bezeichner im Code sind Englisch.
   die Verdrahtung mit der Wegmaske steht in `global_path_model.py`.
 - `backend/app/run_registry.py` — Run-Registry (ein Run = ein Originalvideo).
   SQLite unter `data/registry.sqlite`, Scan des Videoordners bei jedem Lesezugriff.
+- `backend/app/label_ontology.py` — alle Labelklassen in vier Ebenen (Kernklassen,
+  Hindernisse, Problemzonen, ROI). Einzige Quelle fuer Klassen und Farben, auch
+  fuer die Oberflaeche ueber `GET /api/v1/label-ontology`.
+- `backend/app/label_tracks.py` — Spuren: dieselbe Stelle ueber mehrere Frames.
+  Liest nur zusammen, was am Polygon steht.
+- `backend/app/roi_profiles.py` — Auswertungsbereich je Video als Vorschlag.
 - `backend/app/annotations.py`, `labeling.py` — manuelle Ground-Truth-Polygone.
 - `src/` — React-Frontend. `AnalysisView.tsx` (Player mit Overlays) und
   `GroundTruthLabeler.tsx` (Polygonwerkzeug) sind die beiden grossen Komponenten.
@@ -90,6 +96,18 @@ nach `data/missions/<mission_id>/videos/` kopiert werden.
   `from __future__ import annotations`.
 - Ground-Truth-Polygonpunkte sind auf das Originalbild normiert, nie in Pixeln.
   Aenderungen an einem Frame duerfen nie einen anderen Frame veraendern.
+- Nur Kernklassen tragen einen Maskenwert. Hindernisse und Problemzonen erklaeren
+  eine Flaeche, statt sie zu ersetzen — ein Baum steht auf nicht befahrbarem
+  Boden, beides wird markiert. `polygon_mask` filtert deshalb auf
+  `PATH_POSITIVE_CLASSES`; ohne den Filter wuerde jedes Baum- oder
+  Schattenpolygon zum Trainingsbeispiel fuer befahrbaren Boden.
+- Der Auswertungsbereich (ROI) schneidet nie zu. Das Originalbild bleibt
+  vollstaendig, die Regel bleibt aenderbar. Das Videoprofil ist ein Vorschlag;
+  was gilt, steht am jeweiligen Frame.
+- Loeschungen von Labels werden nicht gespeichert: verschwindet eine
+  `tracking_id` im naechsten gelabelten Frame, ist das die Loeschung. Abgeleitet
+  statt doppelt gefuehrt. Die Spur-ID muss deshalb ueber den Framewechsel
+  dieselbe bleiben — sie wird einmal erzeugt und gemerkt, nie zweimal.
 - Aendert sich die Merkmalszahl in `pixel_features` (`path_features.py`), werden alle
   gespeicherten Modelle ungueltig. `MODEL_SCHEMA_VERSION` anheben;
   `test_path_model_core.py` pinnt die Zahl.

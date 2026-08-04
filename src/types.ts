@@ -129,6 +129,49 @@ export type GroundTruthPolygon = {
   origin?: 'manual' | 'model_proposal' | 'manual_corrected' | 'human_confirmed'
   hard_negative?: boolean
   note?: string
+  /** Zeitliche Verkettung: dieselbe Stelle über mehrere Frames. */
+  tracking_id?: string | null
+  carried_from_frame?: number | null
+  edit?: 'new' | 'carried_unchanged' | 'carried_adjusted' | 'corrected'
+}
+export type RoiProfile = {
+  schema_version: string
+  video_id: string
+  top_ignore_fraction: number | null
+  bottom_ignore_fraction: number | null
+  roi: GroundTruthPolygon[]
+  note: string
+  revision: number
+  suggested?: {top_ignore_fraction: number; bottom_ignore_fraction: number}
+  applies_as: string
+}
+export type LabelTrack = {
+  tracking_id: string
+  class_id: string
+  first_frame: number
+  last_frame: number
+  frame_count: number
+  adjusted_count: number
+  corrected_count: number
+  ended_at_frame: number | null
+  class_changes: {frame_index: number; from: string; to: string}[]
+  frames: {frame_index: number; edit: string; carried_from_frame: number | null; certainty: string; point_count: number}[]
+}
+export type LabelTracks = {
+  schema_version: string
+  video_id: string
+  edit_labels: Record<string, string>
+  totals: {
+    tracks: number
+    labelled_frames: number
+    untracked_polygons: number
+    ended_tracks: number
+    adjusted_polygons: number
+    corrected_polygons: number
+    class_changes: number
+  }
+  tracks: LabelTrack[]
+  note: string
 }
 export type GroundTruthAnnotation = {
   schema_version: string

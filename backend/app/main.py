@@ -24,12 +24,14 @@ from .global_video_analysis import (
     start_global_video_analysis,
 )
 from .label_ontology import ontology_document
+from .label_tracks import video_tracks
 from .labeling import list_labeling_videos
 from .models import (
     CriticalFlagInput,
     GroundTruthAnnotationInput,
     MissionRecord,
     PathRefinementInput,
+    RoiProfileInput,
     RunRegistryUpdateInput,
     SurveyPayload,
     TerrainTrainingInput,
@@ -42,6 +44,7 @@ from .path_model import current_path_model_dir, predict_path_frame, save_path_re
 from .path_training_jobs import start_training_job, training_job_status
 from .processor import autonomous_loop, current_run_dir
 from .reconstruction import current_reconstruction_dir, reconstruct
+from .roi_profiles import delete_roi_profile, resolved_roi, save_roi_profile
 from .run_registry import list_runs, scan_runs, update_run
 from .segmentation import current_segmentation_dir, process_segmentation
 from .storage import MissionStore
@@ -214,6 +217,49 @@ def corridor_check(
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, f"Korridorprüfung nicht möglich: {exc}") from exc
+
+
+@app.get("/api/v1/missions/{mission_id}/labels/tracks/{video_id}")
+def label_tracks(mission_id: str, video_id: str):
+    """Spuren eines Videos: dieselbe Stelle ueber mehrere Frames."""
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    return video_tracks(store.root / mission_id, video_id)
+
+
+@app.get("/api/v1/missions/{mission_id}/roi-profile/{video_id}")
+def roi_profile_get(mission_id: str, video_id: str):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    return resolved_roi(store.root / mission_id, video_id)
+
+
+@app.put("/api/v1/missions/{mission_id}/roi-profile/{video_id}")
+def roi_profile_put(mission_id: str, video_id: str, payload: RoiProfileInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return save_roi_profile(record, store.root / mission_id, video_id, payload)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.delete("/api/v1/missions/{mission_id}/roi-profile/{video_id}", status_code=204)
+def roi_profile_delete(mission_id: str, video_id: str):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not delete_roi_profile(store.root / mission_id, video_id):
+        raise HTTPException(404, "Für dieses Video ist kein ROI-Profil gespeichert")
 
 
 @app.get("/api/v1/missions/{mission_id}/trajectories")

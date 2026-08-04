@@ -3688,3 +3688,46 @@ footer {
 .manual-trajectory-panel h2 {
   margin-bottom: 8px;
 }
+
+/* ROI-Profil je Video */
+.roi-profile-panel {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #303a33;
+}
+.roi-profile-panel h2 {
+  margin-bottom: 6px;
+}
+.roi-profile-panel > small {
+  display: block;
+  color: #78847b;
+  font-size: 9px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+.roi-band-controls {
+  display: grid;
+  gap: 8px;
+}
+.roi-band-controls label {
+  margin: 0;
+  font-size: 9px;
+  color: #aeb8b1;
+}
+.roi-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 10px 0;
+}
+.roi-actions button {
+  padding: 9px;
+  border: 1px solid #3d4841;
+  background: #141a16;
+  color: #67e6f1;
+  font: 700 9px 'Space Mono';
+}
+.roi-actions button:disabled {
+  color: #5b645d;
+  border-color: #2c342e;
+}

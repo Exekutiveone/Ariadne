@@ -12,6 +12,10 @@ export type LabelShape = {
   origin: 'manual' | 'model_proposal' | 'manual_corrected' | 'human_confirmed'
   hard_negative: boolean
   note: string
+  /** Zeitliche Verkettung: dieselbe Stelle über mehrere Frames hinweg. */
+  tracking_id?: string | null
+  carried_from_frame?: number | null
+  edit?: 'new' | 'carried_unchanged' | 'carried_adjusted' | 'corrected'
 }
 
 /** Notfallliste, falls die Ontologie nicht geladen werden kann.

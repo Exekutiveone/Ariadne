@@ -115,6 +115,16 @@ class GroundTruthPolygon(BaseModel):
     # Genau die verbessern ein Modell am stärksten, deshalb sind sie auffindbar.
     hard_negative: bool = False
     note: str = Field(default="", max_length=500)
+    # Zeitliche Verkettung: dieselbe Stelle ueber mehrere Frames hinweg.
+    # Bewusst ein Feld am Polygon und kein eigenes Journal — die Angabe reist mit
+    # dem Label mit, und das Training liest die Polygone ohnehin. Ein zweites
+    # Verzeichnis waere eine zweite Wahrheit ueber dieselbe Sache.
+    tracking_id: str | None = Field(default=None, min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
+    carried_from_frame: int | None = Field(default=None, ge=0)
+    # Geloeschte Polygone werden NICHT gespeichert: verschwindet eine
+    # tracking_id im Folgeframe, ist das die Loeschung. Sie ist damit ableitbar
+    # statt doppelt gefuehrt.
+    edit: Literal["new", "carried_unchanged", "carried_adjusted", "corrected"] = "new"
 
     @model_validator(mode="after")
     def normalized_and_distinct(self):
@@ -159,6 +169,31 @@ class GroundTruthAnnotationInput(BaseModel):
         misplaced = [item.class_id for item in self.polygons if layer_of(item.class_id) == "roi"]
         if misplaced:
             raise ValueError("ROI-Klassen gehören in das Feld 'roi', nicht zu den Polygonen")
+        return self
+
+
+class RoiProfileInput(BaseModel):
+    """Auswertungsbereich, der fuer ein ganzes Video gilt.
+
+    Die Baender sind Anteile der Bildhoehe, nicht Pixel — die Aufloesung darf
+    sich aendern, ohne das Profil zu entwerten.
+    """
+
+    top_ignore_fraction: float | None = Field(default=None, gt=0, lt=1)
+    bottom_ignore_fraction: float | None = Field(default=None, gt=0, lt=1)
+    roi: list[GroundTruthPolygon] = Field(default_factory=list, max_length=20)
+    note: str = Field(default="", max_length=1000)
+    annotator: str = Field(default="human", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def only_roi_classes_and_room_between_the_bands(self):
+        wrong = [item.class_id for item in self.roi if layer_of(item.class_id) != "roi"]
+        if wrong:
+            raise ValueError(f"Im Profil sind nur ROI-Klassen erlaubt, nicht: {', '.join(sorted(set(wrong)))}")
+        top = self.top_ignore_fraction or 0
+        bottom = self.bottom_ignore_fraction or 0
+        if top + bottom >= 1:
+            raise ValueError("Oberes und unteres Band würden das ganze Bild ausschließen")
         return self
 
 

@@ -11,6 +11,8 @@ import type {
   GroundTruthSummary,
   LabelingVideoManifest,
   LabelOntology,
+  LabelTracks,
+  RoiProfile,
   Mission,
   PathModelResult,
   PathPrediction,
@@ -120,6 +122,39 @@ export async function saveTrajectory(
 export async function deleteTrajectory(missionId: string, videoId: string, frameIndex: number): Promise<void> {
   const r = await fetch(`/api/v1/missions/${missionId}/trajectories/${videoId}/${frameIndex}`, {method: 'DELETE'})
   if (!r.ok && r.status !== 404) throw new Error('Trajektorie konnte nicht gelöscht werden')
+}
+export async function getRoiProfile(missionId: string, videoId: string): Promise<RoiProfile> {
+  const r = await fetch(`/api/v1/missions/${missionId}/roi-profile/${videoId}`)
+  if (!r.ok) throw new Error('ROI-Profil konnte nicht geladen werden')
+  return r.json()
+}
+export async function saveRoiProfile(
+  missionId: string,
+  videoId: string,
+  payload: {
+    top_ignore_fraction: number | null
+    bottom_ignore_fraction: number | null
+    roi: GroundTruthPolygon[]
+    note: string
+    annotator: string
+  },
+): Promise<RoiProfile> {
+  const r = await fetch(`/api/v1/missions/${missionId}/roi-profile/${videoId}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  let body: any = {}
+  try {
+    body = await r.json()
+  } catch {}
+  if (!r.ok) throw new Error(body.detail || 'ROI-Profil konnte nicht gespeichert werden')
+  return body
+}
+export async function getLabelTracks(missionId: string, videoId: string): Promise<LabelTracks> {
+  const r = await fetch(`/api/v1/missions/${missionId}/labels/tracks/${videoId}`)
+  if (!r.ok) throw new Error('Spuren konnten nicht geladen werden')
+  return r.json()
 }
 export async function getLabelOntology(): Promise<LabelOntology> {
   const r = await fetch('/api/v1/label-ontology')

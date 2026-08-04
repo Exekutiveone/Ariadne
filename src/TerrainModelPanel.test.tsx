@@ -221,11 +221,16 @@ test('marks frames below the confidence threshold as uncertain instead of assign
   render(<TerrainModelPanel />)
   await screen.findByRole('heading', {name: 'Aktives Terrainmodell'})
 
-  fireEvent.click(screen.getByRole('button', {name: 'VIDEO KLASSIFIZIEREN'}))
+  // Der Button ist gesperrt, solange kein Video gewählt ist — die Auswahl setzt
+  // ein Effekt erst nach dem Laden. Ohne dieses Warten klickte der Test auf ein
+  // gesperrtes Element, fireEvent tat stillschweigend nichts, und der Fehler
+  // sah nach einem Timing-Zufall aus statt nach einer verletzten Vorbedingung.
+  const classify = screen.getByRole('button', {name: 'VIDEO KLASSIFIZIEREN'})
+  await waitFor(() => expect(classify).toBeEnabled())
+  fireEvent.click(classify)
 
-  // Grosszuegiger Timeout: die Klassifizierung durchlaeuft zwei Ladezyklen und
-  // die Vorgabe von 1000 ms reisst unter Last gelegentlich.
-  expect(await screen.findByText(/1 unsichere Frames unterhalb 60,0 %/, undefined, {timeout: 4000})).toBeInTheDocument()
+  await waitFor(() => expect(predictTerrainVideo).toHaveBeenCalled())
+  expect(await screen.findByText(/1 unsichere Frames unterhalb 60,0 %/)).toBeInTheDocument()
   expect(screen.getByText('Frame 31')).toBeInTheDocument()
   expect(screen.getByText(/unsicher, am ehesten Walduntergrund \(52,0 %\)/)).toBeInTheDocument()
   // Die sicheren Frames tauchen in der Unsicher-Liste nicht auf.
