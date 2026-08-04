@@ -189,6 +189,7 @@ def save_annotation(
         "status": payload.status,
         "annotator": payload.annotator,
         "notes": payload.notes,
+        "label_mode": payload.label_mode,
         "revision": revision,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "statistics": statistics,
@@ -242,6 +243,9 @@ def list_annotations(
                     "statistics",
                 )
             }
+            # Aeltere Dateien (vor dem Linear/Shuffle-Modus) haben kein
+            # label_mode; sie waren ausnahmslos linear gelabelt.
+            item["label_mode"] = record.get("label_mode", "linear")
             if include_geometry:
                 item["polygons"] = record.get("polygons", [])
                 if "mask" in record:

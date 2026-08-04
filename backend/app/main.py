@@ -30,6 +30,7 @@ from .models import (
     CriticalFlagInput,
     GroundTruthAnnotationInput,
     MissionRecord,
+    OffPathIntervalInput,
     PathRefinementInput,
     RoiProfileInput,
     RunRegistryUpdateInput,
@@ -40,6 +41,7 @@ from .models import (
     VideoMeta,
     VideoTerrainCategoryInput,
 )
+from .off_path_intervals import delete_off_path_interval, list_off_path_intervals, save_off_path_interval
 from .path_model import current_path_model_dir, predict_path_frame, save_path_refinement, train_path_model
 from .path_training_jobs import start_training_job, training_job_status
 from .processor import autonomous_loop, current_run_dir
@@ -217,6 +219,41 @@ def corridor_check(
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(409, f"Korridorprüfung nicht möglich: {exc}") from exc
+
+
+@app.get("/api/v1/missions/{mission_id}/off-path-intervals/{video_id}")
+def off_path_intervals_list(mission_id: str, video_id: str):
+    """Zeitspannen ganz ohne befahrbare Flaeche, waehrend des Anschauens gesetzt."""
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    return list_off_path_intervals(store.root / mission_id, video_id)
+
+
+@app.post("/api/v1/missions/{mission_id}/off-path-intervals/{video_id}", status_code=201)
+def off_path_intervals_create(mission_id: str, video_id: str, payload: OffPathIntervalInput):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    try:
+        return save_off_path_interval(record, store.root / mission_id, video_id, payload)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.delete("/api/v1/missions/{mission_id}/off-path-intervals/{video_id}/{interval_id}", status_code=204)
+def off_path_intervals_remove(mission_id: str, video_id: str, interval_id: str):
+    record = store.get(mission_id)
+    if not record:
+        raise HTTPException(404, "Mission nicht gefunden")
+    if not any(video.id == video_id for video in record.videos):
+        raise HTTPException(404, "Video nicht gefunden")
+    if not delete_off_path_interval(store.root / mission_id, video_id, interval_id):
+        raise HTTPException(404, "Intervall nicht gefunden")
 
 
 @app.get("/api/v1/missions/{mission_id}/labels/tracks/{video_id}")
@@ -425,7 +462,15 @@ def update_video_metadata(mission_id: str, video_id: str, payload: VideoTerrainC
     current = next((item for item in record.videos if item.id == video_id), None)
     if not current:
         raise HTTPException(404, "Video nicht gefunden")
-    updated_video = current.model_copy(update={"terrain_category": payload.terrain_category})
+    # Nur mitgeschickte Felder werden angefasst: eine reine Terrainkategorie-
+    # Aenderung darf fully_not_traversable nicht stillschweigend zuruecksetzen.
+    fields = payload.model_fields_set
+    updates = {}
+    if "terrain_category" in fields:
+        updates["terrain_category"] = payload.terrain_category
+    if "fully_not_traversable" in fields and payload.fully_not_traversable is not None:
+        updates["fully_not_traversable"] = payload.fully_not_traversable
+    updated_video = current.model_copy(update=updates)
     updated_videos = [updated_video if item.id == video_id else item for item in record.videos]
     updated = record.model_copy(update={"videos": updated_videos})
     try:

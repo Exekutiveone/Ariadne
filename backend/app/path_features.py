@@ -109,6 +109,38 @@ def pixel_features(image: np.ndarray):
     return np.stack(channels, axis=-1).reshape(-1, len(channels)).astype(np.float32)
 
 
+def sample_training_pixels(frames, samples_per_class_per_frame: int, rng: np.random.Generator):
+    """Zieht Trainingspixel je Frame — ausbalanciert, wo beide Klassen da sind.
+
+    Ein Frame ganz ohne Wegflaeche (Off-Path-Intervall, komplett nicht
+    befahrbares Video) braucht kein Positivgegenstueck: er liefert reine
+    Negativbeispiele. Ohne diesen Sonderfall wuerde `min(count, len(positive),
+    len(negative))` mit `len(positive) == 0` immer 0 ergeben — die Balance-Regel
+    wuerfe genau die Frames komplett aus dem Training, die extra dafuer markiert
+    wurden, das Modell zu korrigieren. Ihr Effekt bliebe auf die berichteten
+    Metriken beschraenkt, ohne je die gelernten Gewichte zu veraendern.
+    """
+    samples, labels = [], []
+    for item in frames:
+        features = pixel_features(item["image"])
+        flat = item["mask"].reshape(-1)
+        positive = np.flatnonzero(flat == 1)
+        negative = np.flatnonzero(flat == 0)
+        if len(positive) and len(negative):
+            count = min(samples_per_class_per_frame, len(positive), len(negative))
+            if not count:
+                continue
+            selected_positive = rng.choice(positive, count, replace=False)
+            selected_negative = rng.choice(negative, count, replace=False)
+            samples.append(features[np.concatenate([selected_positive, selected_negative])])
+            labels.append(np.concatenate([np.ones(count, np.uint8), np.zeros(count, np.uint8)]))
+        elif len(negative) and not len(positive):
+            count = min(samples_per_class_per_frame, len(negative))
+            samples.append(features[rng.choice(negative, count, replace=False)])
+            labels.append(np.zeros(count, np.uint8))
+    return samples, labels
+
+
 def _standardize(values, mean, scale):
     return (values - mean) / scale
 

@@ -38,6 +38,12 @@ class VideoMeta(BaseModel):
     direction: Literal["A_TO_B", "B_TO_A"]
     orientation: Literal["PORTRAIT", "LANDSCAPE"]
     terrain_category: str | None = Field(default=None, min_length=1, max_length=120)
+    # Das ganze Video zeigt nur nicht befahrbaren Grund (z. B. reine Graben-
+    # oder Dickicht-Aufnahme). Anders als terrain_category (WAS fuer ein
+    # Untergrund) ist das eine Aussage ueber Befahrbarkeit: sie geht direkt als
+    # synthetische Vollnegativ-Frames ins Wegtraining, ohne dass jeder Frame von
+    # Hand gelabelt werden muss.
+    fully_not_traversable: bool = False
 
     @model_validator(mode="after")
     def normalize_terrain_category(self):
@@ -48,7 +54,15 @@ class VideoMeta(BaseModel):
 
 
 class VideoTerrainCategoryInput(BaseModel):
+    """Teilaenderung der Videometadaten.
+
+    Nur mitgeschickte Felder werden angefasst (ueber `model_fields_set` in
+    main.py) — sonst wuerde eine reine Terrainkategorie-Aenderung
+    `fully_not_traversable` unbeabsichtigt zuruecksetzen.
+    """
+
     terrain_category: str | None = Field(default=None, max_length=120)
+    fully_not_traversable: bool | None = None
 
     @model_validator(mode="after")
     def normalize_terrain_category(self):
@@ -158,6 +172,10 @@ class GroundTruthAnnotationInput(BaseModel):
     # Quellgroesse laesst sich spaeter nicht mehr sagen, wie fein ein Label war.
     frame_width: int | None = Field(default=None, ge=1, le=16384)
     frame_height: int | None = Field(default=None, ge=1, le=16384)
+    # Linear (der Reihe nach durchs Video) oder Shuffle (zufaellige Frames aus
+    # mehreren Videos gemischt) — welcher Arbeitsmodus aktiv war, als dieser
+    # Frame gelabelt wurde. Reine Metadaten, veraendert die Maske nicht.
+    label_mode: Literal["linear", "shuffle"] = "linear"
 
     @model_validator(mode="after")
     def roi_holds_only_roi_classes(self):
@@ -194,6 +212,32 @@ class RoiProfileInput(BaseModel):
         bottom = self.bottom_ignore_fraction or 0
         if top + bottom >= 1:
             raise ValueError("Oberes und unteres Band würden das ganze Bild ausschließen")
+        return self
+
+
+class OffPathIntervalInput(BaseModel):
+    """Zeitspanne, waehrend des Anschauens markiert: in diesem Bereich zeigt
+    KEIN einziger Frame einen befahrbaren Bereich — das Fahrzeug ist vom Weg
+    abgekommen (Graben, dichtes Gebuesch, falsche Richtung ...).
+
+    Anders als eine normale Ground Truth ist das nicht "kein Weg markiert",
+    sondern ausdruecklich "es gibt hier keinen Weg". Das Training bestraft das
+    Modell dafuer, hier trotzdem Wegflaeche zu erfinden (invented_path), und
+    das Modell soll fuer Frames in diesem Bereich genau eine Aussage liefern:
+    vom Weg abgekommen.
+    """
+
+    start_ms: int = Field(ge=0)
+    end_ms: int = Field(ge=0)
+    note: str = Field(default="", max_length=500)
+    annotator: str = Field(default="human", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def chronological_and_not_too_short(self):
+        if self.end_ms <= self.start_ms:
+            raise ValueError("Das Intervallende muss nach dem Anfang liegen")
+        if self.end_ms - self.start_ms < 200:
+            raise ValueError("Ein Intervall muss mindestens 200 ms lang sein")
         return self
 
 

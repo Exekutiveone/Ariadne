@@ -17,7 +17,13 @@ from .corridor import (
     evaluate_corridors,
 )
 from .critical_flags import load_critical_flag_records
-from .path_dataset import confirmed_annotations, frame_split, read_frames, read_original_frame
+from .path_dataset import (
+    confirmed_annotations,
+    frame_split,
+    read_frames,
+    read_original_frame,
+    synthetic_hard_negative_records,
+)
 from .path_features import (
     GRADE_ONTOLOGY,
     MODEL_WIDTH,
@@ -31,6 +37,7 @@ from .path_features import (
     grading_summary,
     pixel_features,
     predict_scores,
+    sample_training_pixels,
 )
 from .path_masks import (
     apply_refinements,
@@ -107,15 +114,31 @@ def train_global_path_model(store):
     train_frames, validation_frames = [], []
     included = []
     all_records = []
+    total_hard_negative_records = 0
     for mission in store.list():
         mission_dir = store.root / mission.id
         records = confirmed_annotations(mission_dir)
-        if not records:
+        # Off-Path-Intervalle und komplett nicht befahrbare Videos enthalten
+        # keine einzige Wegflaeche und tauchen deshalb nie in confirmed_annotations
+        # auf. Eine Mission, die NUR daraus besteht (kein einziges Hand-Polygon),
+        # darf trotzdem teilnehmen — genau das ist der Zweck des Komplettlabels:
+        # ohne Polygonarbeit direkt ins Training.
+        hard_negative_records = synthetic_hard_negative_records(mission, mission_dir)
+        if not records and not hard_negative_records:
             continue
         records = [{**record, "mission_id": mission.id, "mission_name": mission.name} for record in records]
-        train_records, validation_records = frame_split(records)
-        decoded_train = read_frames(mission, mission_dir, train_records, MODEL_WIDTH)
-        decoded_validation = read_frames(mission, mission_dir, validation_records, MODEL_WIDTH)
+        train_records, validation_records = frame_split(records) if records else ([], [])
+        decoded_train = read_frames(mission, mission_dir, train_records, MODEL_WIDTH) if train_records else []
+        decoded_validation = (
+            read_frames(mission, mission_dir, validation_records, MODEL_WIDTH) if validation_records else []
+        )
+        if hard_negative_records:
+            hard_train, hard_validation = frame_split(hard_negative_records)
+            decoded_train.extend(read_frames(mission, mission_dir, hard_train, MODEL_WIDTH, allow_unlabelled=True))
+            decoded_validation.extend(
+                read_frames(mission, mission_dir, hard_validation, MODEL_WIDTH, allow_unlabelled=True)
+            )
+            total_hard_negative_records += len(hard_negative_records)
         train_frames.extend(decoded_train)
         validation_frames.extend(decoded_validation)
         all_records.extend(records)
@@ -126,6 +149,7 @@ def train_global_path_model(store):
                 "confirmed_frames": len(records),
                 "train_frames": len(decoded_train),
                 "validation_frames": len(decoded_validation),
+                "hard_negative_records": len(hard_negative_records),
             }
         )
     if len(included) < 2:
@@ -134,20 +158,7 @@ def train_global_path_model(store):
         raise ValueError("Zu wenige dekodierbare Trainings- oder Validierungsframes")
 
     rng = np.random.default_rng(RANDOM_SEED)
-    samples, labels = [], []
-    for item in train_frames:
-        features = pixel_features(item["image"])
-        flat = item["mask"].reshape(-1)
-        positive = np.flatnonzero(flat == 1)
-        negative = np.flatnonzero(flat == 0)
-        count = min(SAMPLES_PER_CLASS_PER_FRAME, len(positive), len(negative))
-        if not count:
-            continue
-        indices = np.concatenate(
-            [rng.choice(positive, count, replace=False), rng.choice(negative, count, replace=False)]
-        )
-        samples.append(features[indices])
-        labels.append(np.concatenate([np.ones(count, np.uint8), np.zeros(count, np.uint8)]))
+    samples, labels = sample_training_pixels(train_frames, SAMPLES_PER_CLASS_PER_FRAME, rng)
     training_samples = np.vstack(samples)
     training_labels = np.concatenate(labels)
     order = rng.permutation(len(training_labels))
@@ -189,6 +200,7 @@ def train_global_path_model(store):
                 "videos": len({record["video_id"] for record in all_records}),
                 "refinements_included": global_dataset_summary(store)["totals"]["refinements"],
                 "critical_flags_included": global_dataset_summary(store)["totals"]["critical_flags"],
+                "hard_negative_records_included": total_hard_negative_records,
             },
             "split": {
                 "strategy": "per_mission_per_video_frame_split",

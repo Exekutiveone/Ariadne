@@ -12,10 +12,17 @@ from pathlib import Path
 
 import cv2
 
+from .labeling import probe_labeling_video
 from .models import MissionRecord
+from .off_path_intervals import synthetic_off_path_records
 from .path_features import MODEL_WIDTH
 from .path_masks import PATH_POSITIVE_CLASSES, apply_refinements, polygon_mask
 from .processor import video_path
+
+# Schrittweite fuer synthetische Vollnegativ-Frames aus komplett nicht
+# befahrbaren Videos. Groesser als bei Off-Path-Intervallen (die sind kurz und
+# brauchen eine feinere Abtastung, sonst blieben zu wenige Frames uebrig).
+DEFAULT_HARD_NEGATIVE_FRAME_STRIDE = 15
 
 # Eigener Lock je Modul: der Modell-Cache in path_model hat seinen eigenen.
 _CACHE_LOCK = threading.Lock()
@@ -123,6 +130,53 @@ def _cached_capture_entry(source: Path):
         while len(_CAPTURE_CACHE) > _CAPTURE_CACHE_SIZE:
             _CAPTURE_CACHE.popitem(last=False)
         return entry
+
+
+def synthetic_fully_not_traversable_records(
+    mission: MissionRecord, mission_dir: Path, frame_stride: int = DEFAULT_HARD_NEGATIVE_FRAME_STRIDE
+):
+    """Videos, die als Ganzes 'komplett nicht befahrbar' markiert sind (reine
+    Graben- oder Dickicht-Aufnahmen), liefern hier synthetische
+    Vollnegativ-Records ueber das gesamte Video — ohne dass jeder Frame von
+    Hand gelabelt werden muss."""
+    records = []
+    for video in mission.videos:
+        if not video.fully_not_traversable:
+            continue
+        try:
+            metadata = probe_labeling_video(mission, mission_dir, video.id)
+        except (OSError, ValueError):
+            continue
+        fps = metadata["fps"]
+        for frame_index in range(0, metadata["total_frames"], max(1, frame_stride)):
+            records.append(
+                {
+                    "video_id": video.id,
+                    "frame_index": frame_index,
+                    "timestamp_ms": round(frame_index / fps * 1000),
+                    "mission_id": mission.id,
+                    "mission_name": mission.name,
+                    "status": "confirmed",
+                    "polygons": [],
+                    "fully_not_traversable_video": True,
+                }
+            )
+    return records
+
+
+def synthetic_hard_negative_records(mission: MissionRecord, mission_dir: Path):
+    """Alle synthetischen Vollnegativ-Records eines Videos: Off-Path-Intervalle
+    plus komplett nicht befahrbare Videos.
+
+    Beide enthalten keine einzige Wegflaeche und tauchen deshalb nicht in
+    `confirmed_annotations` auf (das einen Weganteil verlangt) — sie sollen das
+    Modell aber dafuer bestrafen, hier trotzdem Weg zu erfinden. Gedacht fuer
+    `read_frames(..., allow_unlabelled=True)`.
+    """
+    return [
+        *synthetic_off_path_records(mission, mission_dir),
+        *synthetic_fully_not_traversable_records(mission, mission_dir),
+    ]
 
 
 def read_original_frame(mission_dir: Path, video_id: str, frame_index: int):

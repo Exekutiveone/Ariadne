@@ -13,7 +13,13 @@ import cv2
 import numpy as np
 
 from .models import MissionRecord
-from .path_dataset import confirmed_annotations, frame_split, read_frames, read_original_frame
+from .path_dataset import (
+    confirmed_annotations,
+    frame_split,
+    read_frames,
+    read_original_frame,
+    synthetic_hard_negative_records,
+)
 from .path_features import (
     GRADE_ONTOLOGY,
     MODEL_WIDTH,
@@ -27,6 +33,7 @@ from .path_features import (
     grading_summary,
     pixel_features,
     predict_scores,
+    sample_training_pixels,
 )
 from .path_masks import (
     apply_refinements,
@@ -141,24 +148,27 @@ def train_path_model(
     train_records, validation_records = frame_split(records)
     train_frames = read_frames(mission, mission_dir, train_records, width)
     validation_frames = read_frames(mission, mission_dir, validation_records, width)
+
+    # Harte Negativbeispiele: Off-Path-Intervalle und komplett nicht befahrbare
+    # Videos. Eigener Weg, weil sie keine einzige Wegflaeche enthalten und
+    # deshalb nicht in confirmed_annotations landen — sie sollen das Modell
+    # aber dafuer bestrafen, hier trotzdem Weg zu erfinden.
+    hard_negative_records = synthetic_hard_negative_records(mission, mission_dir)
+    hard_negative_train_frames = hard_negative_validation_frames = 0
+    if hard_negative_records:
+        hard_train, hard_validation = frame_split(hard_negative_records)
+        decoded_hard_train = read_frames(mission, mission_dir, hard_train, width, allow_unlabelled=True)
+        decoded_hard_validation = read_frames(mission, mission_dir, hard_validation, width, allow_unlabelled=True)
+        train_frames.extend(decoded_hard_train)
+        validation_frames.extend(decoded_hard_validation)
+        hard_negative_train_frames = len(decoded_hard_train)
+        hard_negative_validation_frames = len(decoded_hard_validation)
+
     if len(train_frames) < 8 or len(validation_frames) < 2:
         raise ValueError("Zu wenige dekodierbare Trainings- oder Validierungsframes")
 
     rng = np.random.default_rng(seed)
-    samples, labels = [], []
-    for item in train_frames:
-        features = pixel_features(item["image"])
-        flat = item["mask"].reshape(-1)
-        positive = np.flatnonzero(flat == 1)
-        negative = np.flatnonzero(flat == 0)
-        count = min(samples_per_class_per_frame, len(positive), len(negative))
-        if not count:
-            continue
-        selected_positive = rng.choice(positive, count, replace=False)
-        selected_negative = rng.choice(negative, count, replace=False)
-        indices = np.concatenate([selected_positive, selected_negative])
-        samples.append(features[indices])
-        labels.append(np.concatenate([np.ones(count, np.uint8), np.zeros(count, np.uint8)]))
+    samples, labels = sample_training_pixels(train_frames, samples_per_class_per_frame, rng)
     training_samples = np.vstack(samples)
     training_labels = np.concatenate(labels)
     order = rng.permutation(len(training_labels))
@@ -199,6 +209,12 @@ def train_path_model(
                 "negative": "pixels outside confirmed polygons in the same labeled frame",
                 "confirmed_frames": len(records),
                 "videos": len({record["video_id"] for record in records}),
+            },
+            "hard_negatives": {
+                "meaning": "off_path_intervals and fully_not_traversable videos: frames without a single drivable pixel",
+                "synthetic_records": len(hard_negative_records),
+                "train_frames": hard_negative_train_frames,
+                "validation_frames": hard_negative_validation_frames,
             },
             "split": {
                 "strategy": "frame_level_every_fifth_frame_validation_per_video",
