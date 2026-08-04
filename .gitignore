@@ -17,6 +17,12 @@ __pycache__/
 # in keiner Liste stand.
 data/Mission*/
 data/mission*/
+# ... aber NICHT der eigentliche Missionsordner: "data/mission*/" trifft auch
+# "data/missions/" und wuerde damit die gesamte Handarbeit stillschweigend
+# aussperren. Die 275 vorhandenen Ground-Truth-Dateien lagen nur deshalb im
+# Repo, weil bereits getrackte Dateien von .gitignore unberuehrt bleiben; jedes
+# NEUE Label waere verschwunden. Befund vom 04.08.2026.
+!data/missions/
 
 # Analyse-Artefakte: werden bei jedem Lauf vollstaendig neu geschrieben
 # (aktuell 1.498 Dateien, 470 MB, darunter 333 MB JSON und 960 Evidenz-JPGs).
@@ -36,3 +42,8 @@ logs/
 # Run-Registry: SQLite-Datei, Binaerformat. Struktur ist aus dem Videoordner
 # rekonstruierbar, Status und Notiz sind es nicht — gehoert in eine Sicherung.
 data/registry.sqlite
+
+# Terrain-Vorhersagelaeufe: pro Video eine Zeile je Frame, aus Modell und Video
+# jederzeit neu berechenbar. Der Trainingslauf bleibt versioniert, weil
+# current.json auf ihn zeigt.
+data/global_models/terrain_model/predictions/

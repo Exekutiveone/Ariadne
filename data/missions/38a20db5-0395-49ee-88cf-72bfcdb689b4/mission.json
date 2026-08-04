@@ -1,0 +1,61 @@
+{
+  "name": "Mission 4",
+  "start": {
+    "lat": 49.077464,
+    "lng": 7.308655
+  },
+  "end": {
+    "lat": 48.857487,
+    "lng": 6.979065
+  },
+  "route": [
+    {
+      "lat": 49.077464,
+      "lng": 7.308655
+    },
+    {
+      "lat": 48.857487,
+      "lng": 6.979065
+    }
+  ],
+  "movement_start": null,
+  "movement_end": null,
+  "pauses": [],
+  "notes": "",
+  "id": "38a20db5-0395-49ee-88cf-72bfcdb689b4",
+  "status": "READY_FOR_GOAL_2",
+  "created_at": "2026-08-03T21:06:14.547035Z",
+  "videos": [
+    {
+      "direction": "A_TO_B",
+      "orientation": "LANDSCAPE",
+      "terrain_category": "wiese_hoch",
+      "id": "2f2c7f34-5735-42a9-935b-63d9ec4fee0a",
+      "original_name": "IMG_9750.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 173680490,
+      "sha256": "ae687daaf5f6330dfbd131b1eec7f330d11142de06b9cd5c1b197a029aabc49d"
+    },
+    {
+      "direction": "A_TO_B",
+      "orientation": "LANDSCAPE",
+      "terrain_category": "feld_landweg_mit_spuren",
+      "id": "c9d8ca75-d5b0-4e76-9228-904116bbdb49",
+      "original_name": "IMG_9751.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 213932192,
+      "sha256": "6a07d165331de97e3dc99e7a8865add134e2c4729509a4ec92371614794f841d"
+    },
+    {
+      "direction": "A_TO_B",
+      "orientation": "LANDSCAPE",
+      "terrain_category": "wiese_flach",
+      "id": "0d66c221-86df-49f7-a066-bb494e389ec8",
+      "original_name": "IMG_9752.MOV",
+      "content_type": "video/quicktime",
+      "size_bytes": 153451938,
+      "sha256": "7cfbfc651f1b082fad397dbed2db743a6524d8885ea586ea6f987ce870901523"
+    }
+  ],
+  "schema_version": "1.0"
+}

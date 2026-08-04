@@ -1,0 +1,102 @@
+{
+  "schema_version": "2.0",
+  "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+  "video_id": "139bce1e-a0f0-4b70-b57d-7ec4affbcba6",
+  "frame_index": 0,
+  "timestamp_ms": 0,
+  "source_frame_hash": "2d51dd679bfce896af57e04736dd2b6ab47b40c3da9e23a4f146ee68c353f892",
+  "polygons": [
+    {
+      "id": "path-1",
+      "class_id": "traversable",
+      "points": [
+        [
+          0.006659368728334246,
+          0.3634373289545703
+        ],
+        [
+          0.014443836282916742,
+          0.9906951286261632
+        ],
+        [
+          0.3900443957915222,
+          0.9906951286261632
+        ],
+        [
+          0.981663929939792,
+          0.9896004378762999
+        ],
+        [
+          0.9913945143830202,
+          0.4247400109469075
+        ],
+        [
+          0.9583105272760445,
+          0.4017515051997811
+        ],
+        [
+          0.7831600072979383,
+          0.3262178434592228
+        ],
+        [
+          0.6780696953110746,
+          0.27148330596606457
+        ],
+        [
+          0.5904944353220215,
+          0.21455938697318008
+        ],
+        [
+          0.572979383324211,
+          0.18281335522714834
+        ],
+        [
+          0.5496259806604634,
+          0.13902572523262177
+        ],
+        [
+          0.5243264611080704,
+          0.14012041598248495
+        ],
+        [
+          0.4931885908897403,
+          0.16639299397920088
+        ]
+      ]
+    }
+  ],
+  "status": "confirmed",
+  "annotator": "Simon",
+  "notes": "",
+  "revision": 1,
+  "updated_at": "2026-08-03T19:32:46.766614+00:00",
+  "statistics": {
+    "polygon_count": 1,
+    "point_count": 13,
+    "classes": {
+      "traversable": 1
+    }
+  },
+  "ontology": {
+    "unlabelled": {
+      "value": 0,
+      "label": "Nicht markiert / im Training ignorieren",
+      "color": "#00000000"
+    },
+    "traversable": {
+      "value": 1,
+      "label": "Befahrbar",
+      "color": "#55d96f"
+    },
+    "not_traversable": {
+      "value": 2,
+      "label": "Nicht befahrbar",
+      "color": "#e05b52"
+    },
+    "unknown": {
+      "value": 3,
+      "label": "Nicht bewertbar",
+      "color": "#737c78"
+    }
+  }
+}

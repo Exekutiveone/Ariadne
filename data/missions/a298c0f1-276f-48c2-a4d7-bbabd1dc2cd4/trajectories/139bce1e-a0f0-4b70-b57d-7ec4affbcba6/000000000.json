@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "a298c0f1-276f-48c2-a4d7-bbabd1dc2cd4",
+  "video_id": "139bce1e-a0f0-4b70-b57d-7ec4affbcba6",
+  "frame_index": 0,
+  "timestamp_ms": 0,
+  "points": [
+    [
+      0.56184,
+      0.22261
+    ],
+    [
+      0.55625,
+      0.30742
+    ],
+    [
+      0.54053,
+      0.42403
+    ],
+    [
+      0.53599,
+      0.50883
+    ],
+    [
+      0.5297,
+      0.62544
+    ],
+    [
+      0.52271,
+      0.71378
+    ],
+    [
+      0.51607,
+      0.79859
+    ],
+    [
+      0.50699,
+      0.91519
+    ],
+    [
+      0.5,
+      1.0
+    ]
+  ],
+  "corridor": "mitte",
+  "origin": "model_proposal",
+  "note": "",
+  "annotator": "Simon",
+  "coordinate_space": "normalized_to_original_frame",
+  "revision": 1,
+  "created_at": "2026-08-04T05:29:14.532641+00:00",
+  "updated_at": "2026-08-04T05:29:14.532648+00:00"
+}
