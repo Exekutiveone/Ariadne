@@ -174,14 +174,20 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
 
   // Einzelframe-Vorschau wird auch bei fertiger Videoanalyse geholt, solange
   // deren gespeicherte Frames noch keine Abstufung enthalten (Analysen vor
-  // Phase 3). Nicht waehrend der Wiedergabe, um die API nicht pro Frame zu treffen.
+  // Phase 3).
   const needsGradePreview = showGrades && !analysisResult?.frames[frameIndex]?.grade_mask
   useEffect(() => {
     if (!data?.model || !selectedMissionId || !activeVideo) {
       setPrediction(null)
       return
     }
-    if (analysisResult && (!needsGradePreview || playing)) {
+    // Korridore, Fluchtpunkt und Trajektorienvorschlag kommen ausschliesslich
+    // aus dieser Live-Antwort — die Batch-Analyse speichert sie nicht je
+    // Frame. Deshalb bleibt der Aufruf bei jedem Frame noetig, sobald nicht
+    // gerade abgespielt wird, unabhaengig davon, ob die Abstufung bereits aus
+    // der Batch-Analyse vorliegt. Nur waehrend der Wiedergabe wird verzichtet,
+    // um die API nicht pro Frame zu treffen.
+    if (playing) {
       setPrediction(null)
       return
     }
@@ -205,8 +211,6 @@ export default function GlobalModelDashboard({onClose}: {onClose: () => void}) {
     selectedMissionId,
     activeVideo?.video_id,
     frameIndex,
-    analysisResult?.model_run_id,
-    needsGradePreview,
     playing,
     // Aendert sich die Kalibrierung, muessen die Korridore neu berechnet werden;
     // sie haengen an derselben Antwort wie die Maske.
